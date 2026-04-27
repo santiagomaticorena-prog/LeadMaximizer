@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>LeadMaximizer</title>
+
+	<style>
+		body {
+			font-family: Arial, sans-serif;
+			background: #e6dcdc;
+			color: black;
+			margin: 0;
+			padding: 30px;
+		}
+
+		.container {
+			max-width: 900px;
+			margin: 0 auto;
+			background: #ffffff;
+			padding: 24px;
+			border-radius: 14px;
+			box-shadow: 0 0 20px rgba(0,0,0,0.08);
+		}
+
+		.header {
+			background: #111;
+			padding: 16px 20px;
+			border-radius: 10px;
+			margin-bottom: 20px;
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+		}
+
+		h1 {
+			margin: 0;
+			font-size: 28px;
+		}
+
+		.lead {
+			color: #ffffff;
+		}
+
+		.max {
+			color: #4169E1;
+		}
+
+		p {
+			color: black;
+		}
+
+		.section {
+			margin-top: 24px;
+		}
+
+		.label {
+			font-weight: bold;
+			margin-bottom: 8px;
+			display: block;
+			color: #4169E1;
+		}
+
+		.box {
+			background: #ffffff;
+			border: 1px solid #dcdcdc;
+			border-radius: 10px;
+			padding: 16px;
+			white-space: pre-wrap;
+			line-height: 1.5;
+			color: black;
+		}
+
+		input[type="file"] {
+			margin-top: 10px;
+			margin-bottom: 16px;
+			color: black;
+		}
+
+		button {
+			background: #4169E1;
+			color: white;
+			border: none;
+			padding: 12px 18px;
+			border-radius: 8px;
+			font-weight: bold;
+			cursor: pointer;
+		}
+
+		button:hover {
+			background: #3155c5;
+		}
+
+		.loading {
+			margin-top: 14px;
+			color: #4169E1;
+			font-weight: bold;
+		}
+
+		.snapshot-grid {
+			display: grid;
+			grid-template-columns: repeat(3, 1fr);
+			gap: 12px;
+		}
+
+		.stat-card {
+			background: #ffffff;
+			border: 1px solid #dcdcdc;
+			border-radius: 10px;
+			padding: 20px;
+			text-align: center;
+		}
+
+		.stat-title {
+			color: #4169E1;
+			font-size: 13px;
+			margin-bottom: 8px;
+			text-transform: uppercase;
+			letter-spacing: 0.5px;
+		}
+
+		.stat-value {
+			font-size: 24px;
+			font-weight: bold;
+			color: black;
+		}
+
+		.menu-wrapper {
+			position: relative;
+		}
+
+		.menu-button {
+			font-size: 26px;
+			cursor: pointer;
+			color: #4169E1;
+			font-weight: bold;
+		}
+
+		.menu {
+			position: absolute;
+			top: 36px;
+			right: 0;
+			background: #ffffff;
+			border: 1px solid #dcdcdc;
+			border-radius: 10px;
+			box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+			display: none;
+			padding: 8px;
+			z-index: 10;
+			width: 140px;
+		}
+	
+		.menu div {
+			padding: 10px 14px;
+			cursor: pointer;
+			color: black;
+			border-radius: 6px;
+		}
+
+		.menu div:hover {
+			background: #f0f0f0;
+		}
+		.history-item {
+			padding: 12px;
+			border-bottom: 1px solid #ddd;
+			cursor: pointer;
+			border-radius: 8px;
+			display: flex;
+			justify-content: space-between;	
+			align-items: center;
+			gap: 12px;
+		}
+		.history-item:hover {
+			background: #f0f0f0;
+		}
+	</style>
+</head>
+
+<body>
+	<div class="container">
+		<div class="header">
+			<h1><span class="lead">Lead</span><span class="max">Maximizer</span></h1>
+
+			<div class="menu-wrapper">
+				<div class="menu-button" onclick="toggleMenu()">☰</div>
+
+				<div id="menu" class="menu">
+					<div onclick="showHistoryPage()">Call History</div>
+				</div>
+			</div>
+		</div>
+		
+		<div id="mainPage">
+
+		<p>Upload a call recording to get a transcript and AI coaching feedback.</p>
+
+		<div class="section">
+			<label class="label" for="fileInput">Upload Audio File</label>
+			<input type="file" id="fileInput" accept=".mp3,.wav,.m4a,.mp4,.mpeg,.mpga,.webm" />
+			<br />
+			<button type="button" onclick="uploadFile()">Analyze Call</button>
+			<div id="loading" class="loading"></div>
+		</div>
+
+		<div class="section">
+			<div class="label">Call Snapshot</div>
+			<div id="snapshot" class="box">Nothing yet.</div>
+		</div>
+
+		<div class="section">
+			<div class="label">Transcript</div>
+			<div id="transcript" class="box">Nothing yet.</div>
+		</div>
+
+		<div class="section">
+			<div class="label">Analysis</div>
+			<div id="analysis" class="box">Nothing yet.</div>
+		</div>
+
+		</div>
+
+		<div id="historyPage" style="display:none;">
+			<div class="section">
+				<button type="button" onclick="showMainPage()">← Back</button>
+			</div>
+
+			<div class="section">
+				<div class="label">Call History</div>
+				<div id="historyBox" class="box">Loading...</div>
+			</div>		
+		</div>
+	</div>
+
+	<script>
+		function toggleMenu() {
+			const menu = document.getElementById("menu");
+			menu.style.display = menu.style.display === "block" ? "none" : "block";
+		}
+		
+		function showMainPage() {
+			document.getElementById("mainPage").style.display = "block";
+			document.getElementById("historyPage").style.display = "none";
+		}
+
+		async function showHistoryPage() {
+			document.getElementById("menu").style.display = "none";
+			document.getElementById("mainPage").style.display = "none";
+			document.getElementById("historyPage").style.display = "block";
+
+			const historyBox = document.getElementById("historyBox");
+			historyBox.innerText = "Loading...";
+
+			try {
+				const res = await fetch("https://leadmaximizer-backend.onrender.com/api/history");
+				const data = await res.json();
+	
+				if (!data.length) {
+					historyBox.innerText = "No saved calls yet.";
+					return;
+				}
+			
+				historyBox.innerHTML = data.map(call => {
+	
+					const analysisText = call.analysis || "";
+
+					const scoreMatch = analysisText.match(/\*?\*?CALL SCORE:\s*[-]?\s*(.*)/);
+					const score = scoreMatch 
+						? scoreMatch[1].replace(/\*/g, "").trim()
+						:"-";
+
+					return `
+						<div class="history-item">
+							<div onclick="loadCall('${call.id}')" style="flex: 1;">
+								<strong>${call.displayName || call.fileName}</strong> - ${score}<br>
+								<small>${new Date(call.date).toLocaleString()}</small>
+							</div>
+
+							<button type="button" onclick="renameCall('${call.id}')">Rename</button>
+							<button type="button" onclick="deleteCall('${call.id}')">Delete</button>
+						</div>
+					`;
+				}).join("");
+			} catch (error) {
+				historyBox.innerText = "Error loading call history.";
+			}
+		}
+
+		async function renameCall(id) {
+			const newName = prompt("Enter a new name for this call:");
+
+			if (!newName || !newName.trim()) return;
+
+			try {
+				const res = await fetch(`https://leadmaximizer-backend.onrender.com/api/history/${id}`, {
+					method: "PATCH",
+					headers: {
+						"Content-Type": "application/json"
+					},
+					body: JSON.stringify({ newName })
+				});
+
+				if (!res.ok) {
+					throw new Error("Rename failed.");
+				}
+
+				showHistoryPage(); // refresh list 
+			} catch (error) {
+				alert(error.message);
+			}
+		}	
+
+		async function deleteCall(id) {
+			const confirmDelete = confirm("Delete this saved call?");
+
+			if (!confirmDelete) return;
+
+			try {
+				const res = await fetch(`https://leadmaximizer-backend.onrender.com/api/history/${id}`, {
+					method: "DELETE"
+				});
+		
+				if (!res.ok) {
+					throw new Error("Could not delete call.");
+				}
+
+				showHistoryPage();
+			} catch (error) {
+				alert(error.message);
+			}
+		}
+
+		function loadCall(id) {
+			fetch("https://leadmaximizer-backend.onrender.com/api/history")
+				.then(res => res.json())
+				.then(data => {
+					const call = data.find(c => String(c.id) === String(id));
+
+					if (!call) return;
+					
+					const analysisText = call.analysis || "";
+
+					const scoreMatch = analysisText.match(/CALL SCORE:\s*[-]?\s*(.*)/);
+					const statusMatch = analysisText.match(/LEAD STATUS:\s*[-]?\s*(.*)/);
+					const controlMatch = analysisText.match(/CONTROL LEVEL:\s*[-]?\s*(.*)/);
+
+					const cleanValue = (value) => {
+						return value
+							.replace(/\*/g, "")
+							.replace(/:/g, "")
+							.trim();
+					};
+
+					const score = scoreMatch ? cleanValue(scoreMatch[1]) : "-";
+					const status = statusMatch ? cleanValue(statusMatch[1]) : "-";
+					const control = controlMatch ? cleanValue(controlMatch[1]) : "-";
+
+					document.getElementById("snapshot").innerHTML = `
+						<div class="snapshot-grid">
+							<div class="stat-card">
+								<div class="stat-title">Call Score</div>
+								<div class="stat-value">${score}</div>
+							</div>
+							<div class="stat-card">
+								<div class="stat-title">Lead Status</div>
+								<div class="stat-value">${status}</div>
+							</div>
+							<div class="stat-card">
+								<div class="stat-title">Control Level</div>
+								<div class="stat-value">${control}</div>
+							</div>
+						</div>
+					`;
+
+					document.getElementById("transcript").innerText = call.transcript || "No transcript saved.";
+
+					document.getElementById("analysis").innerHTML = analysisText
+						.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+						.replace(/\n/g, "<br>");
+
+					document.getElementById("loading").innerText = "Loaded from call history";
+
+					showMainPage();
+				});
+		}
+
+		async function uploadFile() {
+			const fileInput = document.getElementById("fileInput");
+			const transcriptBox = document.getElementById("transcript");
+			const analysisBox = document.getElementById("analysis");
+			const loading = document.getElementById("loading");
+			const snapshotBox = document.getElementById("snapshot");
+
+			const file = fileInput.files[0];
+
+			if (!file) {
+				alert("Please choose an audio file first.");
+				return;
+			}
+
+			const formData = new FormData();
+			formData.append("audio", file);
+
+			loading.innerText = "Analyzing call...";
+			transcriptBox.innerText = "Working...";
+			analysisBox.innerText = "Working...";
+			snapshotBox.innerText = "Working...";
+
+			try {
+				const response = await fetch("https://leadmaximizer-backend.onrender.com/api/upload", {
+					method: "POST",
+					body: formData
+				});
+
+				let data;
+
+				try {
+					data = await response.json();
+				} catch {
+					throw new Error("Invalid JSON response from server");
+				}
+
+				if (!response.ok) {
+					throw new Error(data.details || data.error || "Server error");
+				}
+
+				const analysisText = data.analysis || "";
+
+				const scoreMatch = analysisText.match(/CALL SCORE:\s*[-]?\s*(.*)/);
+				const statusMatch = analysisText.match(/LEAD STATUS:\s*[-]?\s*(.*)/);
+				const controlMatch = analysisText.match(/CONTROL LEVEL:\s*[-]?\s*(.*)/);
+
+				const cleanValue = (value) => {
+					return value
+						.replace(/\*/g, "")
+						.replace(/:/g, "")
+						.trim();
+				};
+
+				const score = scoreMatch ? cleanValue(scoreMatch[1]) : "-";
+				const status = statusMatch ? cleanValue(statusMatch[1]) : "-";
+				const control = controlMatch ? cleanValue(controlMatch[1]) : "-";
+
+				snapshotBox.innerHTML = `
+					<div class="snapshot-grid">
+						<div class="stat-card">
+							<div class="stat-title">Call Score</div>
+							<div class="stat-value">${score}</div>
+						</div>
+						<div class="stat-card">
+							<div class="stat-title">Lead Status</div>
+							<div class="stat-value">${status}</div>
+						</div>
+						<div class="stat-card">
+							<div class="stat-title">Control Level</div>
+							<div class="stat-value">${control}</div>
+						</div>
+					</div>
+				`;
+
+				transcriptBox.innerText = data.transcript || "No transcript returned.";
+
+				analysisBox.innerHTML = analysisText
+					.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+					.replace(/\n/g, "<br>");
+
+				loading.innerText = "Analysis complete";
+			} catch (error) {
+				console.error("FRONTEND ERROR:", error);
+				transcriptBox.innerText = "Error";
+				analysisBox.innerText = error.message;
+				loading.innerText = "";
+			}
+		}
+	</script>
+</body>
+</html>
