@@ -9,7 +9,7 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-if (!fs.existsSyns("uploads")) {
+if (!fs.existsSync("uploads")) {
 	fs.mkdirSync("uploads");
 } 
 // Middleware
