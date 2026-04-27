@@ -292,6 +292,7 @@ Keep everything concise and practical, and realistic to how top agents speak.
 		
 		console.log("Analysis done:", analysis.output_text);
 
+		/*
 		const history = readHistory();
 
 		const newCall = {
@@ -304,6 +305,7 @@ Keep everything concise and practical, and realistic to how top agents speak.
 		
 		history.unshift(newCall);
 		saveHistory(history);
+		*/
 
 		res.json({
 			message: "File uploaded and transcribed, and analyzed",
@@ -321,18 +323,8 @@ Keep everything concise and practical, and realistic to how top agents speak.
 });
 // Get call history
 app.get("/api/history", (req, res) => {
-	try {
-		const history = readHistory();
-		res.json(history);
-	} catch (error) {
-		console.error(error);
-		res.status(500).json({
-			error: "Could not load call history",
-			details: error.message
-		});
-	}
+	res.json([]);
 });
-
 // Delete a saved call 
 app.delete("/api/history/:id", (req, res) => {
 	try {

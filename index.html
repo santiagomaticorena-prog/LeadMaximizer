@@ -251,8 +251,7 @@
 			historyBox.innerText = "Loading...";
 
 			try {
-				const res = await fetch("https://leadmaximizer-backend.onrender.com/api/history");
-				const data = await res.json();
+				const data = JSON.parse(localStorage.getItem("leadmaximizerHistory") || "[]");
 	
 				if (!data.length) {
 					historyBox.innerText = "No saved calls yet.";
@@ -290,97 +289,87 @@
 
 			if (!newName || !newName.trim()) return;
 
-			try {
-				const res = await fetch(`https://leadmaximizer-backend.onrender.com/api/history/${id}`, {
-					method: "PATCH",
-					headers: {
-						"Content-Type": "application/json"
-					},
-					body: JSON.stringify({ newName })
-				});
+			const savedCalls = JSON.parse(localStorage.getItem("leadmaximizerHistory") || "[]");
 
-				if (!res.ok) {
-					throw new Error("Rename failed.");
+			const updatedCalls = savedCalls.map(call => {
+				if (String(call.id) === String(id)) {
+					return {
+						...call,
+						displayName: newName.trim()
+					};
 				}
+				return call;
+			});
 
-				showHistoryPage(); // refresh list 
-			} catch (error) {
-				alert(error.message);
-			}
-		}	
+			localStorage.setItem("leadmaximizerHistory", JSON.stringify(updatedCalls));
+
+			showHistoryPage();
+		}
 
 		async function deleteCall(id) {
 			const confirmDelete = confirm("Delete this saved call?");
 
 			if (!confirmDelete) return;
 
-			try {
-				const res = await fetch(`https://leadmaximizer-backend.onrender.com/api/history/${id}`, {
-					method: "DELETE"
-				});
-		
-				if (!res.ok) {
-					throw new Error("Could not delete call.");
-				}
+			const savedCalls = JSON.parse(localStorage.getItem("leadmaximizerHistory") || "[]");
 
-				showHistoryPage();
-			} catch (error) {
-				alert(error.message);
-			}
+			const updatedCalls = savedCalls.filter(call => String(call.id) !== String(id));
+
+			localStorage.setItem("leadmaximizerHistory", JSON.stringify(updatedCalls));
+
+			showHistoryPage();
 		}
 
 		function loadCall(id) {
-			fetch("https://leadmaximizer-backend.onrender.com/api/history")
-				.then(res => res.json())
-				.then(data => {
-					const call = data.find(c => String(c.id) === String(id));
+			const data = JSON.parse(localStorage.getItem("leadmaximizerHistory") || "[]");
+				const call = data.find(c => String(c.id) === String(id));
 
-					if (!call) return;
+				if (!call) return;
 					
-					const analysisText = call.analysis || "";
+				const analysisText = call.analysis || "";
 
-					const scoreMatch = analysisText.match(/CALL SCORE:\s*[-]?\s*(.*)/);
-					const statusMatch = analysisText.match(/LEAD STATUS:\s*[-]?\s*(.*)/);
-					const controlMatch = analysisText.match(/CONTROL LEVEL:\s*[-]?\s*(.*)/);
+				const scoreMatch = analysisText.match(/CALL SCORE:\s*[-]?\s*(.*)/);
+				const statusMatch = analysisText.match(/LEAD STATUS:\s*[-]?\s*(.*)/);
+				const controlMatch = analysisText.match(/CONTROL LEVEL:\s*[-]?\s*(.*)/);
 
-					const cleanValue = (value) => {
-						return value
-							.replace(/\*/g, "")
-							.replace(/:/g, "")
-							.trim();
-					};
+				const cleanValue = (value) => {
+					return value
+						.replace(/\*/g, "")
+						.replace(/:/g, "")
+						.trim();
+				};
 
-					const score = scoreMatch ? cleanValue(scoreMatch[1]) : "-";
-					const status = statusMatch ? cleanValue(statusMatch[1]) : "-";
-					const control = controlMatch ? cleanValue(controlMatch[1]) : "-";
+				const score = scoreMatch ? cleanValue(scoreMatch[1]) : "-";
+				const status = statusMatch ? cleanValue(statusMatch[1]) : "-";
+				const control = controlMatch ? cleanValue(controlMatch[1]) : "-";
 
-					document.getElementById("snapshot").innerHTML = `
-						<div class="snapshot-grid">
-							<div class="stat-card">
-								<div class="stat-title">Call Score</div>
-								<div class="stat-value">${score}</div>
-							</div>
-							<div class="stat-card">
-								<div class="stat-title">Lead Status</div>
-								<div class="stat-value">${status}</div>
-							</div>
-							<div class="stat-card">
-								<div class="stat-title">Control Level</div>
-								<div class="stat-value">${control}</div>
-							</div>
+				document.getElementById("snapshot").innerHTML = `
+					<div class="snapshot-grid">
+						<div class="stat-card">
+							<div class="stat-title">Call Score</div>
+							<div class="stat-value">${score}</div>
 						</div>
-					`;
+						<div class="stat-card">
+							<div class="stat-title">Lead Status</div>
+							<div class="stat-value">${status}</div>
+						</div>
+						<div class="stat-card">
+							<div class="stat-title">Control Level</div>
+							<div class="stat-value">${control}</div>
+						</div>
+					</div>
+				`;
 
-					document.getElementById("transcript").innerText = call.transcript || "No transcript saved.";
+				document.getElementById("transcript").innerText = call.transcript || "No transcript saved.";
 
-					document.getElementById("analysis").innerHTML = analysisText
-						.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-						.replace(/\n/g, "<br>");
+				document.getElementById("analysis").innerHTML = analysisText
+					.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+					.replace(/\n/g, "<br>");
 
-					document.getElementById("loading").innerText = "Loaded from call history";
+				document.getElementById("loading").innerText = "Loaded from call history";
 
-					showMainPage();
-				});
+				showMainPage();
+				
 		}
 
 		async function uploadFile() {
@@ -464,6 +453,18 @@
 					.replace(/\n/g, "<br>");
 
 				loading.innerText = "Analysis complete";
+
+				const savedCalls = JSON.parse(localStorage.getItem("leadmaximizerHistory") || "[]");
+
+				savedCalls.unshift({
+					id: Date.now(),
+					date: new Date().toISOString(),
+					fileName: file.name,
+					transcript: data.transcript,
+					analysis: data.analysis 
+				});
+
+				localStorage.setItem("leadmaximizerHistory", JSON.stringify(savedCalls));
 			} catch (error) {
 				console.error("FRONTEND ERROR:", error);
 				transcriptBox.innerText = "Error";
