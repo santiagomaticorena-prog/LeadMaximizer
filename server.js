@@ -339,7 +339,7 @@ Keep everything concise and practical, and realistic to how top agents speak.
 							}
 						}
 					}
-				};
+				);
 
 				const { error: insertError } = await userSupabase.from("calls").insert([
 					{
