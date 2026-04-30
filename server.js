@@ -458,6 +458,8 @@ app.patch("/api/history/:id", requireAuth, async (req, res) => {
 	try {
 		const { id } = req.params;
 		const { newName } = req.body;
+		const authHeader = req.headers.authorization;
+		const token = authHeader.split(" ")[1];
 
 		if (!newName || !newName.trim()) {
 			return res.status(400).json({
@@ -465,18 +467,30 @@ app.patch("/api/history/:id", requireAuth, async (req, res) => {
 			});
 		}
 
-		const { data, error } = await supabase
+		const userSupabase = createClient(
+			process.env.SUPABASE_URL,
+			process.env.SUPABASE_ANON_KEY,
+			{
+				global: {
+					headers: {
+						Authorization: `Bearer ${token}`
+					}
+				}
+			}
+		);
+
+		const { data, error } = await userSupabase
 			.from("calls")
 			.update({ display_name: newName.trim() })
 			.eq("id", id)
 			.eq("user_id", req.user.id)
-			
+			.select();
+
 		if (error) throw error;
 
 		res.json({
 			message: "Call renamed successfully.",
-			id,
-			display_name: newName.trim()
+			updated: data
 		});
 	} catch (error) {
 		console.error(error);
