@@ -329,7 +329,19 @@ Keep everything concise and practical, and realistic to how top agents speak.
 			const { data: userData, error: userError } = await supabase.auth.getUser(token);
 
 			if (!userError && userData.user) {
-				const { error: insertError } = await supabase.from("calls").insert([
+				const userSupabase = createClient(
+					process.env.SUPABASE_URL,
+					process.env.SUPABASE_ANON_KEY,
+					{
+						global: {
+							headers: {
+								Authorization: `Bearer ${token}`
+							}
+						}
+					}
+				};
+
+				const { error: insertError } = await userSupabase.from("calls").insert([
 					{
 						user_id: userData.user.id,
 						file_name: req.file.originalname,
