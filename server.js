@@ -470,14 +470,13 @@ app.patch("/api/history/:id", requireAuth, async (req, res) => {
 			.update({ display_name: newName.trim() })
 			.eq("id", id)
 			.eq("user_id", req.user.id)
-			.select()
-			.single();
-
+			
 		if (error) throw error;
 
 		res.json({
 			message: "Call renamed successfully.",
-			call: data
+			id,
+			display_name: newName.trim()
 		});
 	} catch (error) {
 		console.error(error);
