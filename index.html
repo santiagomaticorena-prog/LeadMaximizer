@@ -4,7 +4,7 @@
 	<meta charset="UTF-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<title>LeadMaximizer</title>
-
+	<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 	<style>
 		body {
 			font-family: Arial, sans-serif;
@@ -173,6 +173,27 @@
 		.history-item:hover {
 			background: #f0f0f0;
 		}
+		.auth-btn {
+			background: transparent;
+			color: #ffffff;
+			border: 1px solid rgba(255,255,255,0.3);
+			padding: 8px 14px;
+			border-radius: 6px;
+			font-size: 13px;
+			cursor: pointer;
+			transition: all 0.2s ease;
+		}
+		.auth-btn:hover {
+			background: rgba(255,255,255,0.1);
+			border-color: rgba(255,255,255,0.6);
+		}
+		.logout-btn {
+			border-color: rgba(255,80,80,0.4);
+		}
+		.logout-btn:hover {
+			background: rgba(255,80,80,0.1);
+			border-color: rgba(255,80,80,0.8);
+		}
 	</style>
 </head>
 
@@ -180,16 +201,43 @@
 	<div class="container">
 		<div class="header">
 			<h1><span class="lead">Lead</span><span class="max">Maximizer</span></h1>
+			<div style="display: flex; align-items: center; gap: 12px;">
+				
+				<button class="auth-btn" onclick="showLogin()">Login</button>
+				<button class="auth-btn logout-btn" onclick="logout()">Logout</button>
+				
+				<div class="menu-wrapper">
+					<div class="menu-button" onclick="toggleMenu()">☰</div>
 
-			<div class="menu-wrapper">
-				<div class="menu-button" onclick="toggleMenu()">☰</div>
-
-				<div id="menu" class="menu">
-					<div onclick="showHistoryPage()">Call History</div>
+					<div id="menu" class="menu">
+						<div onclick="showHistoryPage()">Call History</div>
+					</div>
 				</div>
 			</div>
 		</div>
 		
+		<div id="loginBox" class="box" style="display:none; margin-bottom:20px;">
+			
+			<div style="margin-bottom: 14px;">
+				<button type="button" onclick="showMainPage()">← Back</button>
+			</div>
+
+			<label class="label">Email</label>
+			<input id="emailInput" type="email" placeholder="Email" />
+
+			<label class="label">Password</label>
+			<input id="passwordInput" type="password" placeholder="Password" />
+
+			<br><br>
+
+			<div style="display: flex; gap: 12px;">
+				<button type="button" onclick="signUp()">Sign Up</button>
+				<button type="button" onclick="login()">Log In</button>
+			</div>
+
+			<div id="authMessage" class="loading"></div>
+		</div>
+
 		<div id="mainPage">
 
 		<p>Upload a call recording to get a transcript and AI coaching feedback.</p>
@@ -232,6 +280,73 @@
 	</div>
 
 	<script>
+		const SUPABASE_URL = "https://woulqegnirnxxspuxjgw.supabase.co";
+		const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndvdWxxZWduaXJueHhzcHV4amd3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MDgyODAsImV4cCI6MjA5Mjk4NDI4MH0._K5QZPbzdzT5i1Awy47K0wPBhHT7MrVUXFx5pIE46cs"
+		
+		const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+		let currentSession = null;
+	
+		async function checkSession() {
+			const { data } = await supabaseClient.auth.getSession();
+			currentSession = data.session;
+		}
+
+		checkSession();
+
+		function showLogin() {
+			document.getElementById("mainPage").style.display = "none";
+			document.getElementById("historyPage").style.display = "none";
+			document.getElementById("loginBox").style.display = "block";
+		}
+
+		async function signUp() { 
+			const email = document.getElementById("emailInput").value;
+			const password = document.getElementById("passwordInput").value;
+			const authMessage = document.getElementById("authMessage");
+
+			const { error } = await supabaseClient.auth.signUp({
+				email,
+				password
+			});
+
+			if (error) {
+				authMessage.innerText = error.message;
+				return;
+			}
+
+			authMessage.innerText = "Account created. Check your email if required.";
+		}
+
+		async function login() {
+			const email = document.getElementById("emailInput").value;
+			const password = document.getElementById("passwordInput").value;
+			const authMessage = document.getElementById("authMessage");
+
+			const { data, error } = await supabaseClient.auth.signInWithPassword({
+				email, 
+				password
+			});
+	
+			if (error) {
+				authMessage.innerText = error.message;
+				return;
+			}
+
+			currentSession = data.session;
+			authMessage.innerText = "Logged in.";
+			
+			setTimeout(() => {
+				showMainPage();
+			}, 500);
+		}
+
+		async function logout() {
+			await supabaseClient.auth.signOut();
+			currentSession = null;
+			alert("Logged out.");
+		}
+
 		function toggleMenu() {
 			const menu = document.getElementById("menu");
 			menu.style.display = menu.style.display === "block" ? "none" : "block";
@@ -240,6 +355,7 @@
 		function showMainPage() {
 			document.getElementById("mainPage").style.display = "block";
 			document.getElementById("historyPage").style.display = "none";
+			document.getElementById("loginBox").style.display = "none";
 		}
 
 		async function showHistoryPage() {
@@ -251,7 +367,20 @@
 			historyBox.innerText = "Loading...";
 
 			try {
-				const data = JSON.parse(localStorage.getItem("leadmaximizerHistory") || "[]");
+				await checkSession();
+				
+				if (!currentSession) {
+					historyBox.innerText = "Log in to view saved calls.";
+					return;
+				}
+
+				const res = await fetch("https://leadmaximizer-backend.onrender.com/api/history", {
+					headers: {
+						"Authorization": `Bearer ${currentSession.access_token}`
+					}
+				});
+
+				const data = await res.json();
 	
 				if (!data.length) {
 					historyBox.innerText = "No saved calls yet.";
@@ -270,7 +399,7 @@
 					return `
 						<div class="history-item">
 							<div onclick="loadCall('${call.id}')" style="flex: 1;">
-								<strong>${call.displayName || call.fileName}</strong> - ${score}<br>
+								<strong>${call.display_name || call.file_name}</strong> - ${score}<br>
 								<small>${new Date(call.date).toLocaleString()}</small>
 							</div>
 
@@ -289,89 +418,128 @@
 
 			if (!newName || !newName.trim()) return;
 
-			const savedCalls = JSON.parse(localStorage.getItem("leadmaximizerHistory") || "[]");
+			await checkSession();
 
-			const updatedCalls = savedCalls.map(call => {
-				if (String(call.id) === String(id)) {
-					return {
-						...call,
-						displayName: newName.trim()
-					};
+			if (!currentSession) {
+				alert("Log in to rename calls.");
+				return;
+			}
+
+			try {
+				const res = await fetch(`https://leadmaximizer-backend.onrender.com/api/history/${id}`, {
+					method: "PATCH",
+					headers: {
+						"Content-Type": "application/json",
+						"Authorization": `Bearer ${currentSession.access_token}`
+					},
+					body: JSON.stringify({ newName: newName.trim() })
+				});
+
+				const data = await res.json();
+
+				if (!res.ok) {
+					throw new Error(data.details || data.error || "Could not rename call.");
 				}
-				return call;
-			});
 
-			localStorage.setItem("leadmaximizerHistory", JSON.stringify(updatedCalls));
-
-			showHistoryPage();
-		}
+				showHistoryPage();
+			} catch (error) {
+				alert(error.message);
+			}
+		}		
 
 		async function deleteCall(id) {
 			const confirmDelete = confirm("Delete this saved call?");
 
 			if (!confirmDelete) return;
 
-			const savedCalls = JSON.parse(localStorage.getItem("leadmaximizerHistory") || "[]");
+			await checkSession();
 
-			const updatedCalls = savedCalls.filter(call => String(call.id) !== String(id));
+			if (!currentSession) {
+				alert("Log in to delete calls.");
+				return;
+			}
 
-			localStorage.setItem("leadmaximizerHistory", JSON.stringify(updatedCalls));
+			try {
+				const res = await fetch(`https://leadmaximizer-backend.onrender.com/api/history/${id}`, {
+					method: "DELETE",
+					headers: {
+						"Authorization": `Bearer ${currentSession.access_token}`
+					}
+				});	
 
-			showHistoryPage();
-		}
+				const data = await res.json();
 
-		function loadCall(id) {
-			const data = JSON.parse(localStorage.getItem("leadmaximizerHistory") || "[]");
-				const call = data.find(c => String(c.id) === String(id));
+				if (!res.ok) {
+					throw new Error(data.details || data.error || "Could not delete call.");
+				}		
 
-				if (!call) return;
-					
-				const analysisText = call.analysis || "";
+				showHistoryPage(); // refresh list
+			} catch (error) {
+				alert(error.message);
+			}
+		}		
+	
+		async function loadCall(id) {
+			await checkSession();
 
-				const scoreMatch = analysisText.match(/CALL SCORE:\s*[-]?\s*(.*)/);
-				const statusMatch = analysisText.match(/LEAD STATUS:\s*[-]?\s*(.*)/);
-				const controlMatch = analysisText.match(/CONTROL LEVEL:\s*[-]?\s*(.*)/);
+			if (!currentSession) return;
 
-				const cleanValue = (value) => {
-					return value
-						.replace(/\*/g, "")
-						.replace(/:/g, "")
-						.trim();
-				};
+			const res = await fetch("https://leadmaximizer-backend.onrender.com/api/history", {
+				headers: {
+					"Authorization": `Bearer ${currentSession.access_token}`
+				}
+			});
 
-				const score = scoreMatch ? cleanValue(scoreMatch[1]) : "-";
-				const status = statusMatch ? cleanValue(statusMatch[1]) : "-";
-				const control = controlMatch ? cleanValue(controlMatch[1]) : "-";
+			const data = await res.json();
+			const call = data.find(c => String(c.id) === String(id));
 
-				document.getElementById("snapshot").innerHTML = `
-					<div class="snapshot-grid">
-						<div class="stat-card">
-							<div class="stat-title">Call Score</div>
-							<div class="stat-value">${score}</div>
-						</div>
-						<div class="stat-card">
-							<div class="stat-title">Lead Status</div>
-							<div class="stat-value">${status}</div>
-						</div>
-						<div class="stat-card">
-							<div class="stat-title">Control Level</div>
-							<div class="stat-value">${control}</div>
-						</div>
+			if (!call) return;
+
+			const analysisText = call.analysis || "";
+
+			const scoreMatch = analysisText.match(/CALL SCORE:\s*[-]?\s*(.*)/);
+			const statusMatch = analysisText.match(/LEAD STATUS:\s*[-]?\s*(.*)/);
+			const controlMatch = analysisText.match(/CONTROL LEVEL:\s*[-]?\s*(.*)/);
+
+			const cleanValue = (value) => {
+				return value
+					.replace(/\*/g, "")
+					.replace(/:/g, "")
+					.trim();
+			};
+
+			const score = scoreMatch ? cleanValue(scoreMatch[1]) : "-";
+			const status = statusMatch ? cleanValue(statusMatch[1]) : "-";
+			const control = controlMatch ? cleanValue(controlMatch[1]) : "-";
+
+			document.getElementById("snapshot").innerHTML = `
+				<div class="snapshot-grid">
+					<div class="stat-card">
+						<div class="stat-title">Call Score</div>
+						<div class="stat-value">${score}</div>
 					</div>
-				`;
+					<div class="stat-card">
+						<div class="stat-title">Lead Status</div>
+						<div class="stat-value">${status}</div>
+					</div>
+					<div class="stat-card">
+						<div class="stat-title">Control Level</div>
+						<div class="stat-value">${control}</div>
+					</div>
+				</div>
+			`;
 
-				document.getElementById("transcript").innerText = call.transcript || "No transcript saved.";
+			document.getElementById("transcript").innerText = call.transcript || "No transcript saved.";
 
-				document.getElementById("analysis").innerHTML = analysisText
-					.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-					.replace(/\n/g, "<br>");
+			document.getElementById("analysis").innerHTML = analysisText
+				.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+				.replace(/\n/g, "<br>");
 
-				document.getElementById("loading").innerText = "Loaded from call history";
+			document.getElementById("loading").innerText = "Loaded from call history";
 
-				showMainPage();
-				
-		}
-
+			showMainPage();
+		}		
+			
 		async function uploadFile() {
 			const fileInput = document.getElementById("fileInput");
 			const transcriptBox = document.getElementById("transcript");
@@ -395,8 +563,17 @@
 			snapshotBox.innerText = "Working...";
 
 			try {
+				await checkSession();
+		
+				let headers = {};
+
+				if (currentSession) {
+					headers["Authorization"] = `Bearer ${currentSession.access_token}`;
+				} 
+
 				const response = await fetch("https://leadmaximizer-backend.onrender.com/api/upload", {
 					method: "POST",
+					headers,
 					body: formData
 				});
 
@@ -454,17 +631,6 @@
 
 				loading.innerText = "Analysis complete";
 
-				const savedCalls = JSON.parse(localStorage.getItem("leadmaximizerHistory") || "[]");
-
-				savedCalls.unshift({
-					id: Date.now(),
-					date: new Date().toISOString(),
-					fileName: file.name,
-					transcript: data.transcript,
-					analysis: data.analysis 
-				});
-
-				localStorage.setItem("leadmaximizerHistory", JSON.stringify(savedCalls));
 			} catch (error) {
 				console.error("FRONTEND ERROR:", error);
 				transcriptBox.innerText = "Error";

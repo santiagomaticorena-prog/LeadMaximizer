@@ -4,6 +4,7 @@ import OpenAI from "openai";
 import dotenv from "dotenv";
 import fs from "fs";
 import cors from "cors";
+import { createClient } from "@supabase/supabase-js";
 
 dotenv.config();
 const app = express();
@@ -12,9 +13,38 @@ const PORT = process.env.PORT || 3000;
 if (!fs.existsSync("uploads")) {
 	fs.mkdirSync("uploads");
 } 
+
+const supabase = createClient(
+	process.env.SUPABASE_URL,
+	process.env.SUPABASE_ANON_KEY
+);
+ 
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+async function requireAuth(req, res, next) {
+	try {
+		const authHeader = req.headers.authorization;
+
+		if (!authHeader) {
+			return res.status(401).json({ error: "No token provided" });
+		}
+
+		const token = authHeader.split(" ")[1];
+
+		const { data, error } = await supabase.auth.getUser(token);
+	
+		if (error || !data.user) {
+			return res.status(401).json({ error: "Invalid token" });
+		}
+
+		req.user = data.user;
+		next();
+	} catch (err) {
+		res.status(500).json({ error: "Auth failed"});
+	}
+}
 
 // Multer setup 
 const storage = multer.diskStorage({
@@ -291,21 +321,28 @@ Keep everything concise and practical, and realistic to how top agents speak.
 		});
 		
 		console.log("Analysis done:", analysis.output_text);
+	
+		const authHeader = req.headers.authorization;
 
-		/*
-		const history = readHistory();
+		if(authHeader) {
+			const token = authHeader.split(" ")[1];
+			const { data: userData, error: userError } = await supabase.auth.getUser(token);
 
-		const newCall = {
-			id: Date.now(),
-			date: new Date().toISOString(),
-			fileName: req.file.originalname,
-			transcript: transcription.text,
-			analysis: analysis.output_text
-		};
-		
-		history.unshift(newCall);
-		saveHistory(history);
-		*/
+			if (!userError && userData.user) {
+				const { error: insertError } = await supabase.from("calls").insert([
+					{
+						user_id: userData.user.id,
+						file_name: req.file.originalname,
+						transcript: transcription.text,
+						analysis: analysis.output_text
+					}
+				]);
+
+				if (insertError) {
+					throw insertError;
+				}
+			}
+		}
 
 		res.json({
 			message: "File uploaded and transcribed, and analyzed",
@@ -321,30 +358,46 @@ Keep everything concise and practical, and realistic to how top agents speak.
 		});
 	}
 });
+
 // Get call history
-app.get("/api/history", (req, res) => {
-	res.json([]);
-});
-// Delete a saved call 
-app.delete("/api/history/:id", (req, res) => {
+app.get("/api/history", requireAuth, async (req, res) => {
 	try {
-		console.log("DELETE route hit:", req.params.id);
-		const callId = Number(req.params.id);
-		const history = readHistory();
+		const { data, error } = await supabase 
+			.from("calls")
+			.select("*")
+			.eq("user_id", req.user.id)
+			.order("created_at", { ascending: false });
 
-		const updatedHistory = history.filter(call => Number(call.id) !== callId);
-
-		if (updatedHistory.length === history.length) {
-			return res.status(404).json({
-				error: "Call not found"
-			});
+		if (error) {
+			throw error;
 		}
 
-		saveHistory(updatedHistory);
+		res.json(data);
+	} catch (error) {
+		console.error(error);
+		res.status(500).json({
+			error: "Could not load call history",
+			details: error.message
+		});
+	}
+});
+
+// Delete a saved call 
+app.delete("/api/history/:id", requireAuth, async (req, res) => {
+	try {
+		const { id } = req.params;
+
+		const { error } = await supabase
+			.from("calls")
+			.delete()
+			.eq("id", id)
+			.eq("user_id", req.user.id);
+
+		if (error) throw error;
 
 		res.json({
 			message: "Call deleted successfully.",
-			id: callId 
+			id
 		});
 	} catch (error) {
 		console.error(error);
@@ -355,10 +408,11 @@ app.delete("/api/history/:id", (req, res) => {
 	}
 });
 
+
 // Rename a saved call 
-app.patch("/api/history/:id", (req, res) => {
-	try { 
-		const callId = Number(req.params.id);
+app.patch("/api/history/:id", requireAuth, async (req, res) => {
+	try {
+		const { id } = req.params;
 		const { newName } = req.body;
 
 		if (!newName || !newName.trim()) {
@@ -367,24 +421,19 @@ app.patch("/api/history/:id", (req, res) => {
 			});
 		}
 
-		const history = readHistory();
+		const { data, error } = await supabase
+			.from("calls")
+			.update({ display_name: newName.trim() })
+			.eq("id", id)
+			.eq("user_id", req.user.id)
+			.select()
+			.single();
 
-		const call = history.find(call => Number(call.id) === callId);
-
-		if (!call) {
-			return res.status(404).json({
-				error: "Call not found."
-			});
-		}
-
-		call.displayName = newName.trim();
-
-		saveHistory(history);
+		if (error) throw error;
 
 		res.json({
 			message: "Call renamed successfully.",
-			id: callId,
-			displayName: call.displayName
+			call: data
 		});
 	} catch (error) {
 		console.error(error);

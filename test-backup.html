@@ -251,7 +251,7 @@
 			historyBox.innerText = "Loading...";
 
 			try {
-				const res = await fetch("https://leadmaximizer-backend.onrender.com/api/history");
+				const res = await fetch("http://localhost:3000/api/history");
 				const data = await res.json();
 	
 				if (!data.length) {
@@ -291,7 +291,7 @@
 			if (!newName || !newName.trim()) return;
 
 			try {
-				const res = await fetch(`https://leadmaximizer-backend.onrender.com/api/history/${id}`, {
+				const res = await fetch(`http://localhost:3000/api/history/${id}`, {
 					method: "PATCH",
 					headers: {
 						"Content-Type": "application/json"
@@ -315,7 +315,7 @@
 			if (!confirmDelete) return;
 
 			try {
-				const res = await fetch(`https://leadmaximizer-backend.onrender.com/api/history/${id}`, {
+				const res = await fetch(`http://localhost:3000/api/history/${id}`, {
 					method: "DELETE"
 				});
 		
@@ -330,7 +330,7 @@
 		}
 
 		function loadCall(id) {
-			fetch("https://leadmaximizer-backend.onrender.com/api/history")
+			fetch("http://localhost:3000/api/history")
 				.then(res => res.json())
 				.then(data => {
 					const call = data.find(c => String(c.id) === String(id));
@@ -406,7 +406,7 @@
 			snapshotBox.innerText = "Working...";
 
 			try {
-				const response = await fetch("https://leadmaximizer-backend.onrender.com/api/upload", {
+				const response = await fetch("http://localhost:3000/api/upload", {
 					method: "POST",
 					body: formData
 				});
