@@ -430,18 +430,33 @@ app.get("/api/history", requireAuth, async (req, res) => {
 app.delete("/api/history/:id", requireAuth, async (req, res) => {
 	try {
 		const { id } = req.params;
+		const authHeader = req.headers.authorization;
+		const token = authHeader.split(" ")[1];
 
-		const { error } = await supabase
+		const userSupabase = createClient(
+			process.env.SUPABASE_URL,
+			process.env.SUPABASE_ANON_KEY,
+			{
+				global: {
+					headers: {
+						Authorization: `Bearer ${token}`
+					}
+				}
+			}
+		);
+
+		const { data, error } = await userSupabase
 			.from("calls")
 			.delete()
 			.eq("id", id)
-			.eq("user_id", req.user.id);
+			.eq("user_id", req.user.id)
+			.select();
 
 		if (error) throw error;
 
 		res.json({
 			message: "Call deleted successfully.",
-			id
+			deleted: data
 		});
 	} catch (error) {
 		console.error(error);
@@ -451,7 +466,6 @@ app.delete("/api/history/:id", requireAuth, async (req, res) => {
 		});
 	}
 });
-
 
 // Rename a saved call 
 app.patch("/api/history/:id", requireAuth, async (req, res) => {
