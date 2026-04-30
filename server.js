@@ -332,7 +332,7 @@ Keep everything concise and practical, and realistic to how top agents speak.
 		if (authHeader) {
 			const token = authHeader.split(" ")[1];
 
-			const { data: userData, error: userError } = await supabase.auth.getUser(token;
+			const { data: userData, error: userError } = await supabase.auth.getUser(token);
 
 			console.log("User error:", userError);
 			console.log("User ID:", userData?.user?.id);
