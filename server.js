@@ -393,15 +393,28 @@ Keep everything concise and practical, and realistic to how top agents speak.
 // Get call history
 app.get("/api/history", requireAuth, async (req, res) => {
 	try {
-		const { data, error } = await supabase 
+		const authHeader = req.headers.authorization;
+		const token = authHeader.split(" ")[1];
+
+		const userSupabase = createClient(
+			process.env.SUPABASE_URL,
+			process.env.SUPABASE_ANON_KEY,
+			{
+				global: {
+					headers: {
+						Authorization: `Bearer ${token}`
+					}
+				}
+			}
+		);
+
+		const { data, error } = await userSupabase
 			.from("calls")
 			.select("*")
 			.eq("user_id", req.user.id)
 			.order("created_at", { ascending: false });
 
-		if (error) {
-			throw error;
-		}
+		if (error) throw error;
 
 		res.json(data);
 	} catch (error) {

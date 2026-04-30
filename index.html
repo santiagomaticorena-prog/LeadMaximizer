@@ -381,11 +381,21 @@
 				});
 
 				const data = await res.json();
-	
-				if (!data.length) {
+
+				console.log("History response status:", res.status);
+				console.log("History data:", data);
+
+				if (!res.ok) {
+					throw new Error(data.details || data.error || "Could not load call history.");
+				}
+
+				console.log("History data:", data);
+
+				if (!Array.isArray(data) || data.length === 0) {
 					historyBox.innerText = "No saved calls yet.";
 					return;
 				}
+	
 			
 				historyBox.innerHTML = data.map(call => {
 	
@@ -400,7 +410,7 @@
 						<div class="history-item">
 							<div onclick="loadCall('${call.id}')" style="flex: 1;">
 								<strong>${call.display_name || call.file_name}</strong> - ${score}<br>
-								<small>${new Date(call.date).toLocaleString()}</small>
+								<small>${new Date(call.created_at).toLocaleString()}</small>
 							</div>
 
 							<button type="button" onclick="renameCall('${call.id}')">Rename</button>
