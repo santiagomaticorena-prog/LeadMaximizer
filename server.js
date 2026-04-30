@@ -26,6 +26,7 @@ app.use(express.json());
 async function requireAuth(req, res, next) {
 	try {
 		const authHeader = req.headers.authorization;
+		console.log("Auth header received:", !!authHeader);
 
 		if (!authHeader) {
 			return res.status(401).json({ error: "No token provided" });
@@ -34,6 +35,9 @@ async function requireAuth(req, res, next) {
 		const token = authHeader.split(" ")[1];
 
 		const { data, error } = await supabase.auth.getUser(token);
+		
+		console.log("User error:", error);
+		console.log("User ID:", data?.user?.id);
 	
 		if (error || !data.user) {
 			return res.status(401).json({ error: "Invalid token" });
@@ -323,12 +327,18 @@ Keep everything concise and practical, and realistic to how top agents speak.
 		console.log("Analysis done:", analysis.output_text);
 	
 		const authHeader = req.headers.authorization;
+		console.log("Auth header received:", !!authHeader);
 
-		if(authHeader) {
+		if (authHeader) {
 			const token = authHeader.split(" ")[1];
-			const { data: userData, error: userError } = await supabase.auth.getUser(token);
+
+			const { data: userData, error: userError } = await supabase.auth.getUser(token;
+
+			console.log("User error:", userError);
+			console.log("User ID:", userData?.user?.id);
 
 			if (!userError && userData.user) {
+
 				const userSupabase = createClient(
 					process.env.SUPABASE_URL,
 					process.env.SUPABASE_ANON_KEY,
@@ -341,20 +351,29 @@ Keep everything concise and practical, and realistic to how top agents speak.
 					}
 				);
 
-				const { error: insertError } = await userSupabase.from("calls").insert([
-					{
-						user_id: userData.user.id,
-						file_name: req.file.originalname,
-						transcript: transcription.text,
-						analysis: analysis.output_text
-					}
-				]);
+				const { error: insertError } = await userSupabase 
+					.from("calls")
+					.insert([
+						{
+							user_id: userData.user.id,	
+							file_name: req.file.originalname,
+							transcript: transcription.text,
+							analysis: analysis.output_text
+						}
+					]);
+
+				console.log("Insert error:", insertError);
 
 				if (insertError) {
 					throw insertError;
 				}
+			} else {
+				console.log("User not authenticated, skipping save");
 			}
+		} else {
+			console.log("No auth header, skipping save");
 		}
+		
 
 		res.json({
 			message: "File uploaded and transcribed, and analyzed",
