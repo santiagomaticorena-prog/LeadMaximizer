@@ -194,6 +194,85 @@
 			background: rgba(255,80,80,0.1);
 			border-color: rgba(255,80,80,0.8);
 		}
+		.box-placeholder {
+			color: #777;
+			font-style: italic;
+			font-size: 12px;
+			line-height: 1.4;
+		}
+		button:disabled {
+			opacity: 0.6;
+			cursor: not-allowed;
+		}
+		button:active {
+			transform: scale(0.97);
+		}
+		.spinner {
+			width: 14px;
+			height: 14px;
+			border: 2px solid #d0d0d0;
+			border-top: 2px solid #4169E1;
+			border-radius: 50%;
+			animation: spin 0.7s linear infinite;
+			display: inline-block;
+			margin-right: 8px;
+			vertical-align: middle;
+		}
+		@keyframes spin {
+			to {
+				transform: rotate(360deg);
+			}
+		}
+		.toast {
+			position: fixed;
+			bottom: 20px;
+			left: 50%;
+			transform: translateX(-50%);
+			background: #111;
+			color: #fff;
+			padding: 10px 16px;
+			border-radius: 8px;
+			font-size: 13px;
+			opacity: 0;
+			pointer-events: none;
+			transition: opacity 0.3s ease, transform 0.3s ease;
+			z-index: 1000;
+		}
+		.toast.show {
+			opacity: 1;
+			transform: translateX(-50%) translateY(-6px);
+		}
+		.history-action-btn {
+			padding: 6px 10px;
+			font-size: 12px;
+			border-radius: 6px;
+			font-weight: 600;
+		}
+		.delete-btn {
+			background: #f4f4f4;
+			color: #c0392b;
+			border: 1px solid #e0e0e0;
+		}
+		.delete-btn:hover {
+			background: #ffecec;
+		}
+		.fade-in {
+			animation: fadeIn 0.4s ease;
+		}
+		@keyframes fadeIn {
+			from {
+				opacity: 0;
+				transform: translateY(6px);
+			}
+			to {
+				opacity: 1;
+				transform: translateY(0);
+			}
+		}
+		.copy-btn {
+			margin-bottom: 12px;
+			margin-top: 4px;
+		}
 	</style>
 </head>
 
@@ -203,14 +282,14 @@
 			<h1><span class="lead">Lead</span><span class="max">Maximizer</span></h1>
 			<div style="display: flex; align-items: center; gap: 12px;">
 				
-				<button class="auth-btn" onclick="showLogin()">Login</button>
-				<button class="auth-btn logout-btn" onclick="logout()">Logout</button>
+				<button id="loginHeaderBtn" class="auth-btn" onclick="showLogin()">Login</button>
 				
 				<div class="menu-wrapper">
 					<div class="menu-button" onclick="toggleMenu()">☰</div>
 
 					<div id="menu" class="menu">
 						<div onclick="showHistoryPage()">Call History</div>
+						<div id="logoutMenuItem" onclick="logout()" style="display:none;">Logout</div>
 					</div>
 				</div>
 			</div>
@@ -240,11 +319,12 @@
 
 		<div id="mainPage">
 
-		<p>Upload a call recording to get a transcript and AI coaching feedback.</p>
+		<p>Upload a call recording to receive a full transcript, performance score, and AI coaching insights.</p>
 
 		<div class="section">
 			<label class="label" for="fileInput">Upload Audio File</label>
 			<input type="file" id="fileInput" accept=".mp3,.wav,.m4a,.mp4,.mpeg,.mpga,.webm" />
+			<div id="fileName" style="margin-top: 6px; font-size:12px; color:#555;"></div>
 			<br />
 			<button type="button" onclick="uploadFile()">Analyze Call</button>
 			<div id="loading" class="loading"></div>
@@ -252,17 +332,19 @@
 
 		<div class="section">
 			<div class="label">Call Snapshot</div>
-			<div id="snapshot" class="box">Nothing yet.</div>
+			<div id="snapshot" class="box box-placeholder">Your call performance metrics will appear here after analysis.</div>
 		</div>
 
 		<div class="section">
 			<div class="label">Transcript</div>
-			<div id="transcript" class="box">Nothing yet.</div>
+			<button id="copyTranscriptBtn" class="copy-btn" style="display:none;" onclick="copyText('transcript', 'Transcript copied.')">Copy Transcript</button>
+			<div id="transcript" class="box box-placeholder">Your transcript will appear here after analysis.</div>
 		</div>
 
 		<div class="section">
 			<div class="label">Analysis</div>
-			<div id="analysis" class="box">Nothing yet.</div>
+			<button id="copyAnalysisBtn" class="copy-btn" style="display:none;" onclick="copyText('analysis', 'Analysis copied.')">Copy Analysis</button>
+			<div id="analysis" class="box box-placeholder">Detailed AI coaching feedback will show up here.</div>
 		</div>
 
 		</div>
@@ -279,6 +361,8 @@
 		</div>
 	</div>
 
+	<div id="toast" class="toast"></div>
+
 	<script>
 		const SUPABASE_URL = "https://woulqegnirnxxspuxjgw.supabase.co";
 		const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndvdWxxZWduaXJueHhzcHV4amd3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc0MDgyODAsImV4cCI6MjA5Mjk4NDI4MH0._K5QZPbzdzT5i1Awy47K0wPBhHT7MrVUXFx5pIE46cs"
@@ -286,10 +370,24 @@
 		const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 		let currentSession = null;
+
+		function updateAuthUI() {
+			const loginHeaderBtn = document.getElementById("loginHeaderBtn");
+			const logoutMenuItem = document.getElementById("logoutMenuItem");
+
+			if (currentSession) {
+				loginHeaderBtn.style.display = "none";
+				logoutMenuItem.style.display = "block";
+			} else {
+				loginHeaderBtn.style.display = "inline-block";
+				logoutMenuItem.style.display = "none";
+			}
+		}
 	
 		async function checkSession() {
 			const { data } = await supabaseClient.auth.getSession();
 			currentSession = data.session;
+			updateAuthUI();
 		}
 
 		checkSession();
@@ -315,7 +413,7 @@
 				return;
 			}
 
-			authMessage.innerText = "Account created. Check your email if required.";
+			authMessage.innerText = "Account created successfully. You can now log in.";
 		}
 
 		async function login() {
@@ -334,7 +432,8 @@
 			}
 
 			currentSession = data.session;
-			authMessage.innerText = "Logged in.";
+			updateAuthUI();
+			authMessage.innerText = "Successfully logged in.";
 			
 			setTimeout(() => {
 				showMainPage();
@@ -344,13 +443,49 @@
 		async function logout() {
 			await supabaseClient.auth.signOut();
 			currentSession = null;
-			alert("Logged out.");
+			updateAuthUI();
+			document.getElementById("menu").style.display = "none";
+			showMainPage();
+			showToast("You have been logged out.");
+		}
+
+		function showToast(message) {
+			const toast = document.getElementById("toast");
+			toast.innerText = message;
+
+			toast.classList.add("show");
+
+			setTimeout(() => {
+				toast.classList.remove("show");
+			}, 2500);
+		}
+
+		async function copyText(elementId, successMessage) {
+			const element = document.getElementById(elementId);
+			const text = element.innerText.trim();
+
+			if(!text || element.classList.contains("box-placeholder")) {
+				showToast("Nothing to copy yet.");
+				return;
+			}
+
+			await navigator.clipboard.writeText(text);
+			showToast(successMessage);
 		}
 
 		function toggleMenu() {
 			const menu = document.getElementById("menu");
 			menu.style.display = menu.style.display === "block" ? "none" : "block";
 		}
+
+		document.addEventListener("click", function(event) {
+			const menu = document.getElementById("menu");
+			const menuButton = document.querySelector(".menu-button");
+
+			if (!menu.contains(event.target) && !menuButton.contains(event.target)) {
+				menu.style.display = "none";
+			}
+		});
 		
 		function showMainPage() {
 			document.getElementById("mainPage").style.display = "block";
@@ -364,13 +499,13 @@
 			document.getElementById("historyPage").style.display = "block";
 
 			const historyBox = document.getElementById("historyBox");
-			historyBox.innerText = "Loading...";
+			historyBox.innerText = "Loading your call history...";
 
 			try {
 				await checkSession();
 				
 				if (!currentSession) {
-					historyBox.innerText = "Log in to view saved calls.";
+					historyBox.innerText = "Log in to access and manage your saved calls.";
 					return;
 				}
 
@@ -392,7 +527,7 @@
 				console.log("History data:", data);
 
 				if (!Array.isArray(data) || data.length === 0) {
-					historyBox.innerText = "No saved calls yet.";
+					historyBox.innerText = "No saved calls yet. Analyze a call to start building your history.";
 					return;
 				}
 	
@@ -413,13 +548,13 @@
 								<small>${new Date(call.created_at).toLocaleString()}</small>
 							</div>
 
-							<button type="button" onclick="renameCall('${call.id}')">Rename</button>
-							<button type="button" onclick="deleteCall('${call.id}')">Delete</button>
+							<button class="history-action-btn" type="button" onclick="renameCall('${call.id}')">Rename</button>
+							<button class="history-action-btn delete-btn" type="button" onclick="deleteCall('${call.id}')">Delete</button>
 						</div>
 					`;
 				}).join("");
 			} catch (error) {
-				historyBox.innerText = "Error loading call history.";
+				historyBox.innerText = "Unable to load call history. Please try again.";
 			}
 		}
 
@@ -431,7 +566,7 @@
 			await checkSession();
 
 			if (!currentSession) {
-				alert("Log in to rename calls.");
+				showToast("Log in to rename calls.");
 				return;
 			}
 
@@ -451,21 +586,22 @@
 					throw new Error(data.details || data.error || "Could not rename call.");
 				}
 
+				showToast("Call renamed.");
 				showHistoryPage();
 			} catch (error) {
-				alert(error.message);
+				showToast(error.message);
 			}
 		}		
 
 		async function deleteCall(id) {
-			const confirmDelete = confirm("Delete this saved call?");
+			const confirmDelete = confirm("Are you sure you want to permanently delete this call?");
 
 			if (!confirmDelete) return;
 
 			await checkSession();
 
 			if (!currentSession) {
-				alert("Log in to delete calls.");
+				showToast("Please log in to manage your saved calls.");
 				return;
 			}
 
@@ -482,10 +618,11 @@
 				if (!res.ok) {
 					throw new Error(data.details || data.error || "Could not delete call.");
 				}		
-
+				
+				showToast("Call deleted.");
 				showHistoryPage(); // refresh list
 			} catch (error) {
-				alert(error.message);
+				showToast(error.message);
 			}
 		}		
 	
@@ -545,32 +682,50 @@
 				.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
 				.replace(/\n/g, "<br>");
 
+			document.getElementById("snapshot").classList.remove("box-placeholder");
+			document.getElementById("transcript").classList.remove("box-placeholder");
+			document.getElementById("analysis").classList.remove("box-placeholder");
+
+			document.getElementById("copyTranscriptBtn").style.display = "inline-block";
+			document.getElementById("copyAnalysisBtn").style.display = "inline-block";			
+
+			document.getElementById("snapshot").classList.add("fade-in");
+			document.getElementById("transcript").classList.add("fade-in");
+			document.getElementById("analysis").classList.add("fade-in");
+
 			document.getElementById("loading").innerText = "Loaded from call history";
 
 			showMainPage();
 		}		
 			
 		async function uploadFile() {
+			document.getElementById("copyTranscriptBtn").style.display = "none";
+			document.getElementById("copyAnalysisBtn").style.display = "none";
+
 			const fileInput = document.getElementById("fileInput");
 			const transcriptBox = document.getElementById("transcript");
 			const analysisBox = document.getElementById("analysis");
 			const loading = document.getElementById("loading");
 			const snapshotBox = document.getElementById("snapshot");
+			const analyzeBtn = document.querySelector('button[onclick="uploadFile()"]');
 
 			const file = fileInput.files[0];
 
 			if (!file) {
-				alert("Please choose an audio file first.");
+				showToast("Please choose an audio file first.");
 				return;
 			}
 
 			const formData = new FormData();
 			formData.append("audio", file);
 
-			loading.innerText = "Analyzing call...";
-			transcriptBox.innerText = "Working...";
-			analysisBox.innerText = "Working...";
-			snapshotBox.innerText = "Working...";
+			loading.innerHTML = `<span class="spinner"></span>Analyzing your call... this may take a few moments.`;
+			transcriptBox.innerText = "Generating transcript...";
+			analysisBox.innerText = "Analyzing performance...";
+			snapshotBox.innerText = "Calculating metrics...";
+
+			analyzeBtn.disabled = true;
+			analyzeBtn.innerText = "Analyzing...";
 
 			try {
 				await checkSession();
@@ -639,15 +794,44 @@
 					.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
 					.replace(/\n/g, "<br>");
 
-				loading.innerText = "Analysis complete";
+				snapshotBox.classList.remove("box-placeholder");
+				transcriptBox.classList.remove("box-placeholder");
+				analysisBox.classList.remove("box-placeholder");
+
+				document.getElementById("copyTranscriptBtn").style.display = "inline-block";
+				document.getElementById("copyAnalysisBtn").style.display = "inline-block";
+
+				snapshotBox.classList.add("fade-in");
+				transcriptBox.classList.add("fade-in");
+				analysisBox.classList.add("fade-in");
+
+				loading.innerText = "Analysis complete. Review your results below.";
+
+				analyzeBtn.disabled = false;
+				analyzeBtn.innerText = "Analyze Call";
 
 			} catch (error) {
 				console.error("FRONTEND ERROR:", error);
-				transcriptBox.innerText = "Error";
+				transcriptBox.innerText = "Something went wrong while processing your file.";
 				analysisBox.innerText = error.message;
-				loading.innerText = "";
+				loading.innerHTML = "";
+			
+				analyzeBtn.disabled = false;
+				analyzeBtn.innerText = "Analyze Call";
 			}
 		}
+
+		document.getElementById("fileInput").addEventListener("change", function() {
+			const file = this.files[0];
+			const fileNameDisplay = document.getElementById("fileName");
+
+			if (file) {
+				fileNameDisplay.innerText = "Selected file: " + file.name;
+			} else {
+				fileNameDisplay.innerText = "";
+			}
+		});
+
 	</script>
 </body>
 </html>
