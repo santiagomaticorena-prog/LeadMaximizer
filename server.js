@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import fs from "fs";
 import cors from "cors";
 import { createClient } from "@supabase/supabase-js";
+import rateLimit from "express-rate-limit";
 
 dotenv.config();
 const app = express();
@@ -22,6 +23,14 @@ const supabase = createClient(
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+const uploadLimiter = rateLimit({
+	windowMs: 15 * 60 * 1000, // 15 minutes 
+	max: 20,
+	message: {
+		error: "Too many uploads. Please try again later."
+	}
+});
 
 async function requireAuth(req, res, next) {
 	try {
@@ -50,6 +59,20 @@ async function requireAuth(req, res, next) {
 	}
 }
 
+function getUserSupabase(token) {
+	return createClient(
+		process.env.SUPABASE_URL,
+		process.env.SUPABASE_ANON_KEY,
+		{
+			global: {
+				headers: {
+					Authorization: `Bearer ${token}`
+				}
+			}
+		}
+	);
+}
+
 // Multer setup 
 const storage = multer.diskStorage({
 	destination: (req, file, cb) => {
@@ -66,21 +89,6 @@ const upload = multer({ storage });
 const openai = new OpenAI({
 	apiKey: process.env.OPENAI_API_KEY
 });
-// Call History Setup 
-const historyFile = "history.json";
-
-function readHistory() {
-	if (!fs.existsSync(historyFile)) {
-		return [];
-	}
-
-	const data = fs.readFileSync(historyFile, "utf8");
-	return data ? JSON.parse(data) : [];
-}
-
-function saveHistory(history) {
-	fs.writeFileSync(historyFile, JSON.stringify(history, null, 2));
-}
 
 // Routes 
 // Home route 
@@ -115,30 +123,24 @@ app.post("/api/analyze", (req, res) => {
 		}
 	});
 });
-// Upload + transcribe route
-app.post("/api/upload", upload.single("audio"), async (req, res) => {
-	try {
-		console.log("Upload route hit");
-		if (!req.file) {
-			return res.status(400).json({ error: "No file uploaded" });
-		}
-		console.log(req.file);
-		
-		console.log("Starting transcription...");
-		const transcription = await openai.audio.transcriptions.create({
-			file: fs.createReadStream(req.file.path),
-			model: "gpt-4o-transcribe",
-			language: "en",
-			prompt: "Transcribe everything exactly as spoken in this real estate call, including quiet speech, filler words, incomplete phrases, and low-volume words."
-		});
-		console.log("Transcription done:", transcription.text);
-		const transcriptText = transcription.text;
-		const callerType = "agent"; // or "assistant"
 
-		console.log("Starting analysis...");
-		const analysis = await openai.responses.create({
-			model: "gpt-5.4",
-			input: `
+// Helper functions
+async function transcribeAudio(filePath) {
+	const transcription = await openai.audio.transcriptions.create({
+		file: fs.createReadStream(filePath),
+		model: "gpt-4o-transcribe",
+		language: "en",
+		prompt: "Transcribe everything exactly as spoken in this real estate call, including quiet speech, filler words, incomplete phrases, and low-volume words."
+	});
+
+	return transcription.text;
+}
+
+async function analyzeTranscript(transcriptText, callerType = "agent") {
+	const analysis = await openai.responses.create({
+		model: "gpt-5.4",
+		response_format: { type: "json_object" } ,
+		input: `
 You are an elite real estate cold-calling coach.
 
 Your job is to help a caller book listing appointments.
@@ -321,10 +323,70 @@ RELOCATION / NEXT HOME:
 - if not applicable, say "Not enough information"
 
 Keep everything concise and practical, and realistic to how top agents speak. 
+
+Return ONLY valid JSON. Do not include markdown or extra text.
+
+Use this exact JSON structure: 
+
+{
+	"callScore": 0,
+	"leadStatus": "Neutral",
+	"controlLevel": "Medium",
+	"momentumShifts": [
+		{
+			"shift": "resistance → neutral",
+			"reason": "Short explanation"
+		}
+	],
+	"summary": "",
+	"whatWentWell": [],
+	"whatToFix": [],
+	"betterOpening": "",
+	"nextMove": {
+		"action": "",
+		"exactSentence": ""
+	},
+	"sellerMotivation": "",
+	"optionsToPresent": [],
+	"relocationNextHome": ""
+}
       `
 		});
 		
 		console.log("Analysis done:", analysis.output_text);
+		let parsedAnalysis;
+
+		try {
+			parsedAnalysis = JSON.parse(analysis.output_text);
+		} catch (e) {
+			console.error("❌ AI returned invalid JSON:", analysis.output_text);
+
+			parsedAnalysis = {
+				error: "Invalid AI response format",
+				raw: analysis.output_text
+			};
+		}
+		
+		return parsedAnalysis;
+	}
+
+// Upload + transcribe route
+app.post("/api/upload", uploadLimiter, upload.single("audio"), async (req, res) => {
+	try {
+		console.log("Upload route hit");
+		if (!req.file) {
+			return res.status(400).json({ error: "No file uploaded" });
+		}
+		console.log(req.file);
+		
+		console.log("Starting transcription...");
+		const transcriptText = await transcribeAudio(req.file.path);
+		console.log("Transcription done:", transcriptText);
+		const callerType = "agent"; // or "assistant"
+
+		console.log("Starting analysis...");
+		const parsedAnalysis = await analyzeTranscript(transcriptText, callerType);
+			
 	
 		const authHeader = req.headers.authorization;
 		console.log("Auth header received:", !!authHeader);
@@ -339,17 +401,7 @@ Keep everything concise and practical, and realistic to how top agents speak.
 
 			if (!userError && userData.user) {
 
-				const userSupabase = createClient(
-					process.env.SUPABASE_URL,
-					process.env.SUPABASE_ANON_KEY,
-					{
-						global: {
-							headers: {
-								Authorization: `Bearer ${token}`
-							}
-						}
-					}
-				);
+				const userSupabase = getUserSupabase(token)
 
 				const { error: insertError } = await userSupabase 
 					.from("calls")
@@ -357,8 +409,11 @@ Keep everything concise and practical, and realistic to how top agents speak.
 						{
 							user_id: userData.user.id,	
 							file_name: req.file.originalname,
-							transcript: transcription.text,
-							analysis: analysis.output_text
+							transcript: transcriptText,
+							analysis: parsedAnalysis,
+							call_score: parsedAnalysis.callScore,
+							lead_status: parsedAnalysis.leadStatus,
+							control_level: parsedAnalysis.controlLevel
 						}
 					]);
 
@@ -377,8 +432,8 @@ Keep everything concise and practical, and realistic to how top agents speak.
 
 		res.json({
 			message: "File uploaded and transcribed, and analyzed",
-			transcript: transcription.text,
-			analysis: analysis.output_text
+			transcript: transcriptText,
+			analysis: parsedAnalysis
 		});
 	} catch (error) {
 		console.error(error);
@@ -396,27 +451,30 @@ app.get("/api/history", requireAuth, async (req, res) => {
 		const authHeader = req.headers.authorization;
 		const token = authHeader.split(" ")[1];
 
-		const userSupabase = createClient(
-			process.env.SUPABASE_URL,
-			process.env.SUPABASE_ANON_KEY,
-			{
-				global: {
-					headers: {
-						Authorization: `Bearer ${token}`
-					}
-				}
-			}
-		);
+		const userSupabase = getUserSupabase(token);
 
-		const { data, error } = await userSupabase
+		const page = parseInt(req.query.page) || 1;
+		const limit = parseInt(req.query.limit) || 10;
+		
+		const from = (page - 1) * limit;
+		const to = from + limit - 1;
+
+		const { data, error, count } = await userSupabase
 			.from("calls")
-			.select("*")
-			.eq("user_id", req.user.id)
-			.order("created_at", { ascending: false });
+			.select("*", { count: "exact" })
+			.eq("user_id", req.user.id)	
+			.order("created_at", { ascending: false })
+			.range(from, to);
 
 		if (error) throw error;
 
-		res.json(data);
+		res.json({
+			calls: data,
+			page,
+			limit,
+			total: count,
+			totalPages: Math.ceil(count / limit)
+		});
 	} catch (error) {
 		console.error(error);
 		res.status(500).json({
@@ -433,17 +491,7 @@ app.delete("/api/history/:id", requireAuth, async (req, res) => {
 		const authHeader = req.headers.authorization;
 		const token = authHeader.split(" ")[1];
 
-		const userSupabase = createClient(
-			process.env.SUPABASE_URL,
-			process.env.SUPABASE_ANON_KEY,
-			{
-				global: {
-					headers: {
-						Authorization: `Bearer ${token}`
-					}
-				}
-			}
-		);
+		const userSupabase = getUserSupabase(token);
 
 		const { data, error } = await userSupabase
 			.from("calls")
@@ -481,17 +529,7 @@ app.patch("/api/history/:id", requireAuth, async (req, res) => {
 			});
 		}
 
-		const userSupabase = createClient(
-			process.env.SUPABASE_URL,
-			process.env.SUPABASE_ANON_KEY,
-			{
-				global: {
-					headers: {
-						Authorization: `Bearer ${token}`
-					}
-				}
-			}
-		);
+		const userSupabase = getUserSupabase(token);
 
 		const { data, error } = await userSupabase
 			.from("calls")

@@ -77,6 +77,30 @@
 			color: black;
 		}
 
+		.drop-zone {
+			border: 2px dashed #b8b8b8;
+			border-radius: 12px;
+			padding: 28px;
+			text-align: center;
+			cursor: pointer;
+			margin-top: 10px;
+			margin-bottom: 16px;
+			transition: all 0.2s ease;
+			background: #fafafa;
+		}
+		.drop-zone p {
+			margin: 4px 0;
+		}
+		.drop-zone-subtext {
+			font-size: 13px;
+			color: #666;
+		}
+		.drop-zone:hover,
+		.drop-zone.dragover {
+			border-color: #4169E1;
+			background: rgba(65, 105, 225, 0.08);
+		}
+
 		button {
 			background: #4169E1;
 			color: white;
@@ -89,6 +113,15 @@
 
 		button:hover {
 			background: #3155c5;
+		}
+	
+		.secondary-btn {
+			background: #f4f4f4;
+			color: #4169E1;
+			border: 1px solid #dcdcdc;
+		}
+		.secondary-btn:hover {
+			background: #e9ecff;
 		}
 
 		.loading {
@@ -273,6 +306,13 @@
 			margin-bottom: 12px;
 			margin-top: 4px;
 		}
+		.collapsible-label {
+			cursor: pointer;
+			user-select: none;
+			display: flex;
+			justify-content: space-between;
+			align-items: center;
+		}
 	</style>
 </head>
 
@@ -323,10 +363,21 @@
 
 		<div class="section">
 			<label class="label" for="fileInput">Upload Audio File</label>
-			<input type="file" id="fileInput" accept=".mp3,.wav,.m4a,.mp4,.mpeg,.mpga,.webm" />
+
+			<div id="dropZone" class="drop-zone">
+				<p>Drag & drop an audio file here</p>
+				<p class="drop-zone-subtext">or click to choose a file</p>
+				<input type="file" id="fileInput" accept=".mp3,.wav,.m4a,.mp4,.mpeg,.mpga,.webm" hidden/>
+			</div>
+
 			<div id="fileName" style="margin-top: 6px; font-size:12px; color:#555;"></div>
 			<br />
-			<button type="button" onclick="uploadFile()">Analyze Call</button>
+			<div style="display: flex; gap: 12px; align-items: center;">
+				<button type="button" onclick="uploadFile()">Analyze Call</button>
+				<button type="button" onclick="resetCall()" class="secondary-btn" id="newCallBtn" style="display:none;">
+					New Call
+				</button>
+			</div>
 			<div id="loading" class="loading"></div>
 		</div>
 
@@ -336,15 +387,27 @@
 		</div>
 
 		<div class="section">
-			<div class="label">Transcript</div>
-			<button id="copyTranscriptBtn" class="copy-btn" style="display:none;" onclick="copyText('transcript', 'Transcript copied.')">Copy Transcript</button>
-			<div id="transcript" class="box box-placeholder">Your transcript will appear here after analysis.</div>
+			<div class="label collapsible-label" onclick="toggleSection('transcriptSection', 'transcriptArrow')">
+				Transcript <span id="transcriptArrow">▼</span>
+			</div>
+			<div id="transcriptStats" style="font-size:12px; color:#666; margin-bottom:8px; display:none;">
+				0 words • ~0 min
+			</div>	
+			<div id="transcriptSection">
+				<button id="copyTranscriptBtn" class="copy-btn" style="display:none;" onclick="copyText('transcript', 'Transcript copied.')">Copy Transcript</button>
+				<div id="transcript" class="box box-placeholder">Your transcript will appear here after analysis.</div>
+			</div>
 		</div>
 
 		<div class="section">
-			<div class="label">Analysis</div>
-			<button id="copyAnalysisBtn" class="copy-btn" style="display:none;" onclick="copyText('analysis', 'Analysis copied.')">Copy Analysis</button>
-			<div id="analysis" class="box box-placeholder">Detailed AI coaching feedback will show up here.</div>
+			<div class="label collapsible-label" onclick="toggleSection('analysisSection', 'analysisArrow')">
+				Analysis <span id="analysisArrow">▼</span>
+			</div>
+			<div id="analysisSection">
+				<button id="copyAnalysisBtn" class="copy-btn" style="display:none;" onclick="copyText('analysis', 'Analysis copied.')">Copy Analysis</button>
+				<div id="analysis" class="box box-placeholder">Detailed AI coaching feedback will show up here.</div>
+			</div>
+
 		</div>
 
 		</div>
@@ -370,6 +433,16 @@
 		const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 		let currentSession = null;
+
+		let loadingMessageInterval = null;
+
+		const loadingMessages = [
+			"Uploading file...",
+			"Transcribing audio...",
+			"Analyzing tone...",
+			"Evaluating performance...",
+			"Generating coaching feedback..."
+		];
 
 		function updateAuthUI() {
 			const loginHeaderBtn = document.getElementById("loginHeaderBtn");
@@ -471,6 +544,19 @@
 
 			await navigator.clipboard.writeText(text);
 			showToast(successMessage);
+		}
+
+		function toggleSection(sectionId, arrowId) {
+			const section = document.getElementById(sectionId);
+			const arrow = document.getElementById(arrowId);
+
+			if (section.style.display === "none") {
+				section.style.display = "block";
+				arrow.innerText = "▼";
+			} else {
+				section.style.display = "none";
+				arrow.innerText = "▶";
+			}
 		}
 
 		function toggleMenu() {
@@ -677,6 +763,19 @@
 			`;
 
 			document.getElementById("transcript").innerText = call.transcript || "No transcript saved.";
+			const transcriptText = call.transcript || "";
+
+			const wordCount = transcriptText.trim()
+				? transcriptText.trim().split(/\s+/).length
+				: 0;
+
+			const minutes = Math.max(1, Math.round(wordCount / 150));
+
+			const stats = document.getElementById("transcriptStats");
+
+			stats.innerText = `${wordCount.toLocaleString()} words • ~${minutes} min`;
+			stats.style.display = "block";
+
 
 			document.getElementById("analysis").innerHTML = analysisText
 				.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
@@ -687,7 +786,9 @@
 			document.getElementById("analysis").classList.remove("box-placeholder");
 
 			document.getElementById("copyTranscriptBtn").style.display = "inline-block";
-			document.getElementById("copyAnalysisBtn").style.display = "inline-block";			
+			document.getElementById("copyAnalysisBtn").style.display = "inline-block";
+			document.getElementById("newCallBtn").style.display = "inline-block";
+						
 
 			document.getElementById("snapshot").classList.add("fade-in");
 			document.getElementById("transcript").classList.add("fade-in");
@@ -697,7 +798,71 @@
 
 			showMainPage();
 		}		
-			
+		
+		function resetCall() {
+			const fileInput = document.getElementById("fileInput");
+			const fileNameDisplay = document.getElementById("fileName");
+			const loading = document.getElementById("loading");
+			const snapshotBox = document.getElementById("snapshot");
+			const transcriptBox = document.getElementById("transcript");
+			const analysisBox = document.getElementById("analysis");
+
+			fileInput.value = "";
+			fileNameDisplay.innerText = "";
+			loading.innerText = "";
+		
+			snapshotBox.innerText = "Your call performance metrics will appear here after analysis.";
+			transcriptBox.innerText = "Your transcript will appear here after analysis.";
+			analysisBox.innerText = "Detailed AI coaching feedback will show up here.";
+
+			snapshotBox.classList.add("box-placeholder");
+			transcriptBox.classList.add("box-placeholder");
+			analysisBox.classList.add("box-placeholder");
+
+			document.getElementById("copyTranscriptBtn").style.display = "none";
+			document.getElementById("copyAnalysisBtn").style.display = "none";
+			document.getElementById("newCallBtn").style.display = "none";
+
+			const stats = document.getElementById("transcriptStats");
+			stats.style.display = "none";
+			stats.innerText = "0 words • ~0 min";
+
+			showToast("Ready for a new call.");
+		}
+
+		function startLoadingMessages() {	
+			const loading = document.getElementById("loading");
+			let index = 0;
+
+			loading.innerHTML = `<span class="spinner"></span>${loadingMessages[index]}`;
+
+			loadingMessageInterval = setInterval(() => {
+				index = (index + 1) % loadingMessages.length;
+				loading.innerHTML = `<span class="spinner"></span>${loadingMessages[index]}`;
+			}, 2000);
+		}
+
+		function stopLoadingMessages() {
+			clearInterval(loadingMessageInterval);
+			loadingMessageInterval = null;
+		}
+
+		function typeAnalysis(element, htmlText) {
+			element.innerHTML = "";
+			let index = 0;
+	
+			const typingSpeed = 8;
+
+			const interval = setInterval(() => {
+				element.innerHTML = htmlText.slice(0, index);
+				index++;
+
+				if (index > htmlText.length) {
+					clearInterval(interval);
+				} 
+			}, typingSpeed);
+		}
+	
 		async function uploadFile() {
 			document.getElementById("copyTranscriptBtn").style.display = "none";
 			document.getElementById("copyAnalysisBtn").style.display = "none";
@@ -719,7 +884,8 @@
 			const formData = new FormData();
 			formData.append("audio", file);
 
-			loading.innerHTML = `<span class="spinner"></span>Analyzing your call... this may take a few moments.`;
+			startLoadingMessages();
+
 			transcriptBox.innerText = "Generating transcript...";
 			analysisBox.innerText = "Analyzing performance...";
 			snapshotBox.innerText = "Calculating metrics...";
@@ -789,10 +955,24 @@
 				`;
 
 				transcriptBox.innerText = data.transcript || "No transcript returned.";
+				const transcriptText = data.transcript || "";
+	
+				const wordCount = transcriptText.trim()
+					? transcriptText.trim().split(/\s+/).length 
+					: 0;
 
-				analysisBox.innerHTML = analysisText
+				const minutes = Math.max(1, Math.round(wordCount / 150));
+
+				const stats = document.getElementById("transcriptStats");
+
+				stats.innerText = `${wordCount.toLocaleString()} words • ~${minutes} min`;
+				stats.style.display = "block";
+
+				const formattedAnalysis = analysisText
 					.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
 					.replace(/\n/g, "<br>");
+					
+				typeAnalysis(analysisBox, formattedAnalysis);
 
 				snapshotBox.classList.remove("box-placeholder");
 				transcriptBox.classList.remove("box-placeholder");
@@ -800,12 +980,19 @@
 
 				document.getElementById("copyTranscriptBtn").style.display = "inline-block";
 				document.getElementById("copyAnalysisBtn").style.display = "inline-block";
+				document.getElementById("newCallBtn").style.display = "inline-block";
 
 				snapshotBox.classList.add("fade-in");
 				transcriptBox.classList.add("fade-in");
 				analysisBox.classList.add("fade-in");
 
+				stopLoadingMessages();
 				loading.innerText = "Analysis complete. Review your results below.";
+
+				document.getElementById("snapshot").scrollIntoView({
+					behavior: "smooth",
+					block: "start"
+				});
 
 				analyzeBtn.disabled = false;
 				analyzeBtn.innerText = "Analyze Call";
@@ -814,6 +1001,7 @@
 				console.error("FRONTEND ERROR:", error);
 				transcriptBox.innerText = "Something went wrong while processing your file.";
 				analysisBox.innerText = error.message;
+				stopLoadingMessages();
 				loading.innerHTML = "";
 			
 				analyzeBtn.disabled = false;
@@ -821,15 +1009,61 @@
 			}
 		}
 
-		document.getElementById("fileInput").addEventListener("change", function() {
+		const dropZone = document.getElementById("dropZone");
+		const fileInput = document.getElementById("fileInput");
+		const fileNameDisplay = document.getElementById("fileName");
+
+		dropZone.addEventListener("click", () => {
+			fileInput.click();
+		});
+
+		fileInput.addEventListener("change", function() {
 			const file = this.files[0];
-			const fileNameDisplay = document.getElementById("fileName");
 
 			if (file) {
-				fileNameDisplay.innerText = "Selected file: " + file.name;
+				fileNameDisplay.innerText = "Selected File: " + file.name;
 			} else {
 				fileNameDisplay.innerText = "";
 			}
+		});
+
+		dropZone.addEventListener("dragover", function(event) {
+			event.preventDefault();
+			dropZone.classList.add("dragover");
+		});
+
+		dropZone.addEventListener("dragleave", function() {
+			dropZone.classList.remove("dragover");
+		});
+
+		dropZone.addEventListener("drop", function(event) {
+			event.preventDefault();
+			dropZone.classList.remove("dragover");
+
+			const file = event.dataTransfer.files[0];
+	
+			if (!file) return;
+
+			const allowedTypes = [
+				"audio/mpeg",
+				"audio/wav",
+				"audio/x-wav",
+				"audio/mp4",
+				"audio/webm",
+				"video/mp4"
+			];
+
+			if (!file.type.startsWith("audio/") && !allowedTypes.includes(file.type)) {
+				showToast("Please upload a supported audio file.");
+				return;
+			}
+		
+			const dataTransfer = new DataTransfer();
+			dataTransfer.items.add(file);
+			fileInput.files = dataTransfer.files;
+
+			fileNameDisplay.innerText = "Selected file: " + file.name;
+			showToast("File added successfully.");
 		});
 
 	</script>
