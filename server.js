@@ -139,7 +139,11 @@ async function transcribeAudio(filePath) {
 async function analyzeTranscript(transcriptText, callerType = "agent") {
 	const analysis = await openai.responses.create({
 		model: "gpt-5.4",
-		response_format: { type: "json_object" } ,
+		text: {
+			format: {
+				type: "json_object"
+			}
+		},
 		input: `
 You are an elite real estate cold-calling coach.
 
