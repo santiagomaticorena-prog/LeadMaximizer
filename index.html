@@ -602,6 +602,7 @@
 				});
 
 				const data = await res.json();
+				const calls = data.calls || [];
 
 				console.log("History response status:", res.status);
 				console.log("History data:", data);
@@ -612,20 +613,28 @@
 
 				console.log("History data:", data);
 
-				if (!Array.isArray(data) || data.length === 0) {
+
+				if (!Array.isArray(calls) || calls.length === 0) {
 					historyBox.innerText = "No saved calls yet. Analyze a call to start building your history.";
 					return;
 				}
 	
 			
-				historyBox.innerHTML = data.map(call => {
+				historyBox.innerHTML = calls.map(call => {
 	
-					const analysisText = call.analysis || "";
+					let analysisObj = {};
 
-					const scoreMatch = analysisText.match(/\*?\*?CALL SCORE:\s*[-]?\s*(.*)/);
-					const score = scoreMatch 
-						? scoreMatch[1].replace(/\*/g, "").trim()
-						:"-";
+					try {
+						analysisObj =
+							typeof call.analysis === "string"
+								? JSON.parse(call.analysis)
+								: call.analysis || {};
+					} catch {
+						analysisObj = {};
+					}
+
+					const score = call.call_score || analysisObj?.callScore || "-";
+
 
 					return `
 						<div class="history-item">
@@ -724,15 +733,16 @@
 			});
 
 			const data = await res.json();
-			const call = data.find(c => String(c.id) === String(id));
+			const calls = data.calls || [];
+			const call = calls.find(c => String(c.id) === String(id));
 
 			if (!call) return;
 
-			const analysisText = call.analysis || "";
+			const analysisString = call.analysis || "";
 
-			const scoreMatch = analysisText.match(/CALL SCORE:\s*[-]?\s*(.*)/);
-			const statusMatch = analysisText.match(/LEAD STATUS:\s*[-]?\s*(.*)/);
-			const controlMatch = analysisText.match(/CONTROL LEVEL:\s*[-]?\s*(.*)/);
+			const scoreMatch = analysisString.match(/CALL SCORE:\s*[-]?\s*(.*)/);
+			const statusMatch = analysisString.match(/LEAD STATUS:\s*[-]?\s*(.*)/);
+			const controlMatch = analysisString.match(/CONTROL LEVEL:\s*[-]?\s*(.*)/);
 
 			const cleanValue = (value) => {
 				return value
@@ -777,7 +787,7 @@
 			stats.style.display = "block";
 
 
-			document.getElementById("analysis").innerHTML = analysisText
+			document.getElementById("analysis").innerHTML = analysisString
 				.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
 				.replace(/\n/g, "<br>");
 
@@ -920,22 +930,19 @@
 					throw new Error(data.details || data.error || "Server error");
 				}
 
-				const analysisText = data.analysis || "";
+				const analysisString = 
+					typeof data.analysis === "string"
+						? data.analysis
+						: JSON.stringify(data.analysis, null, 2);
 
-				const scoreMatch = analysisText.match(/CALL SCORE:\s*[-]?\s*(.*)/);
-				const statusMatch = analysisText.match(/LEAD STATUS:\s*[-]?\s*(.*)/);
-				const controlMatch = analysisText.match(/CONTROL LEVEL:\s*[-]?\s*(.*)/);
+				const analysisObj = 
+					typeof data.analysis === "string"
+						? JSON.parse(data.analysis)
+						: data.analysis;
 
-				const cleanValue = (value) => {
-					return value
-						.replace(/\*/g, "")
-						.replace(/:/g, "")
-						.trim();
-				};
-
-				const score = scoreMatch ? cleanValue(scoreMatch[1]) : "-";
-				const status = statusMatch ? cleanValue(statusMatch[1]) : "-";
-				const control = controlMatch ? cleanValue(controlMatch[1]) : "-";
+				const score = analysisObj.callScore || "-";
+				const status = analysisObj.leadStatus || "-";
+				const control = analysisObj.controlLevel || "-";
 
 				snapshotBox.innerHTML = `
 					<div class="snapshot-grid">
@@ -968,9 +975,26 @@
 				stats.innerText = `${wordCount.toLocaleString()} words • ~${minutes} min`;
 				stats.style.display = "block";
 
-				const formattedAnalysis = analysisText
-					.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-					.replace(/\n/g, "<br>");
+				const formattedAnalysis = `
+				<strong>Summary:</strong><br>${analysisObj.summary || ""}<br><br>
+
+				<strong>What Went Well:</strong><br>
+				${(analysisObj.whatWentWell || []).map(item => `• ${item}`).join("<br>")}<br><br>
+
+				<strong>What To Fix:</strong><br>
+				${(analysisObj.whatToFix || []).map(item => `• ${item}`).join("<br>")}<br><br>
+
+				<strong>Better Opening:</strong><br>${analysisObj.betterOpening || ""}<br><br>
+
+				<strong>Next Move:</strong><br>${analysisObj.nextMove?.exactSentence || ""}<br><br>
+
+				<strong>Seller Motivation:</strong><br>${analysisObj.sellerMotivation || ""}<br><br>
+
+				<strong>Options To Present:</strong><br>
+${(analysisObj.optionsToPresent || []).map(item => `• ${item}`).join("<br>")}<br><br>
+
+				<strong>Relocation / Next Home:</strong><br>${analysisObj.relocationNextHome || ""}
+				`;
 					
 				typeAnalysis(analysisBox, formattedAnalysis);
 
