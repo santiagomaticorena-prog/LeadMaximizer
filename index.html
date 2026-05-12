@@ -140,7 +140,7 @@
 			background: #ffffff;
 			border: 1px solid #dcdcdc;
 			border-radius: 10px;
-			padding: 20px;
+			padding: 12px;
 			text-align: center;
 		}
 
@@ -153,7 +153,7 @@
 		}
 
 		.stat-value {
-			font-size: 24px;
+			font-size: 18px;
 			font-weight: bold;
 			color: black;
 		}
@@ -738,22 +738,38 @@
 
 			if (!call) return;
 
-			const analysisString = call.analysis || "";
+			let analysisObj = null;
+			let isOldFormat = false;
+			let analysisRaw = call.analysis || "";
 
-			const scoreMatch = analysisString.match(/CALL SCORE:\s*[-]?\s*(.*)/);
-			const statusMatch = analysisString.match(/LEAD STATUS:\s*[-]?\s*(.*)/);
-			const controlMatch = analysisString.match(/CONTROL LEVEL:\s*[-]?\s*(.*)/);
+			try {
+				analysisObj =
+					typeof call.analysis === "string"
+						? JSON.parse(call.analysis)
+						: call.analysis;
+			} catch {
+				isOldFormat = true;
+			}
 
-			const cleanValue = (value) => {
-				return value
-					.replace(/\*/g, "")
-					.replace(/:/g, "")
-					.trim();
+			const getOldValue = (label) => {
+				const match = String(analysisRaw).match(new RegExp(label + ":\\s*[-]?\\s*(.*)", "i"));
+				return match ? match[1].replace(/\*/g, "").trim() : "-";
 			};
 
-			const score = scoreMatch ? cleanValue(scoreMatch[1]) : "-";
-			const status = statusMatch ? cleanValue(statusMatch[1]) : "-";
-			const control = controlMatch ? cleanValue(controlMatch[1]) : "-";
+			const score =
+				call.call_score ||
+				analysisObj?.callScore ||
+				(isOldFormat ? getOldValue("CALL SCORE") : "-");
+
+			const status =
+				call.lead_status ||
+				analysisObj?.leadStatus ||
+				(isOldFormat ? getOldValue("LEAD STATUS") : "-");
+
+			const control =
+				call.control_level ||
+				analysisObj?.controlLevel ||
+				(isOldFormat ? getOldValue("CONTROL LEVEL") : "-");
 
 			document.getElementById("snapshot").innerHTML = `
 				<div class="snapshot-grid">
@@ -761,10 +777,12 @@
 						<div class="stat-title">Call Score</div>
 						<div class="stat-value">${score}</div>
 					</div>
+
 					<div class="stat-card">
 						<div class="stat-title">Lead Status</div>
 						<div class="stat-value">${status}</div>
 					</div>
+
 					<div class="stat-card">
 						<div class="stat-title">Control Level</div>
 						<div class="stat-value">${control}</div>
@@ -772,42 +790,68 @@
 				</div>
 			`;
 
-			document.getElementById("transcript").innerText = call.transcript || "No transcript saved.";
-			const transcriptText = call.transcript || "";
+			const transcriptBox = document.getElementById("transcript");
 
-			const wordCount = transcriptText.trim()
-				? transcriptText.trim().split(/\s+/).length
-				: 0;
+			transcriptBox.innerText = call.transcript || "No transcript saved.";
 
-			const minutes = Math.max(1, Math.round(wordCount / 150));
+			transcriptBox.classList.remove("box-placeholder");
 
-			const stats = document.getElementById("transcriptStats");
+			let formattedAnalysis = "";
 
-			stats.innerText = `${wordCount.toLocaleString()} words • ~${minutes} min`;
-			stats.style.display = "block";
+			if (isOldFormat) {
+				formattedAnalysis = analysisRaw
+					.replace(/\n/g, "<br>");
+			} else {
+				formattedAnalysis = `
+					<strong>Summary:</strong><br>
+					${analysisObj.summary || ""}<br><br>
 
+					<strong>What Went Well:</strong><br>
+					${(analysisObj.whatWentWell || [])
+						.map(item => `• ${item}`)
+						.join("<br>")}<br><br>
 
-			document.getElementById("analysis").innerHTML = analysisString
-				.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-				.replace(/\n/g, "<br>");
+					<strong>What To Fix:</strong><br>
+					${(analysisObj.whatToFix || [])
+						.map(item => `• ${item}`)
+						.join("<br>")}<br><br>
+
+					<strong>Better Opening:</strong><br>
+					${analysisObj.betterOpening || ""}<br><br>
+
+					<strong>Next Move:</strong><br>
+					${analysisObj.nextMove?.exactSentence || ""}<br><br>
+
+					<strong>Seller Motivation:</strong><br>
+					${analysisObj.sellerMotivation || ""}<br><br>
+
+					<strong>Options To Present:</strong><br>
+					${(analysisObj.optionsToPresent || [])
+						.map(item => `• ${item}`)
+						.join("<br>")}<br><br>
+
+					<strong>Relocation / Next Home:</strong><br>
+					${analysisObj.relocationNextHome || ""}
+				`;
+			}
+
+			document.getElementById("analysis").innerHTML = formattedAnalysis;
+
+			document.getElementById("analysis").innerHTML = formattedAnalysis;
 
 			document.getElementById("snapshot").classList.remove("box-placeholder");
 			document.getElementById("transcript").classList.remove("box-placeholder");
 			document.getElementById("analysis").classList.remove("box-placeholder");
 
 			document.getElementById("copyTranscriptBtn").style.display = "inline-block";
+
 			document.getElementById("copyAnalysisBtn").style.display = "inline-block";
 			document.getElementById("newCallBtn").style.display = "inline-block";
-						
-
-			document.getElementById("snapshot").classList.add("fade-in");
-			document.getElementById("transcript").classList.add("fade-in");
-			document.getElementById("analysis").classList.add("fade-in");
 
 			document.getElementById("loading").innerText = "Loaded from call history";
 
-			showMainPage();
-		}		
+			showMainPage();			
+		}			
 		
 		function resetCall() {
 			const fileInput = document.getElementById("fileInput");
@@ -963,17 +1007,23 @@
 
 				transcriptBox.innerText = data.transcript || "No transcript returned.";
 				const transcriptText = data.transcript || "";
-	
+
+				transcriptBox.innerText = transcriptText || "No transcript returned.";
+
+				transcriptBox.classList.remove("box-placeholder");
+
 				const wordCount = transcriptText.trim()
-					? transcriptText.trim().split(/\s+/).length 
+					? transcriptText.trim().split(/\s+/).length
 					: 0;
 
-				const minutes = Math.max(1, Math.round(wordCount / 150));
+				const minutes = wordCount > 0
+					? Math.max(1, Math.round(wordCount / 150))
+					: 0;
 
 				const stats = document.getElementById("transcriptStats");
 
 				stats.innerText = `${wordCount.toLocaleString()} words • ~${minutes} min`;
-				stats.style.display = "block";
+				stats.style.display = wordCount > 0 ? "block" : "none";
 
 				const formattedAnalysis = `
 				<strong>Summary:</strong><br>${analysisObj.summary || ""}<br><br>
@@ -996,7 +1046,7 @@ ${(analysisObj.optionsToPresent || []).map(item => `• ${item}`).join("<br>")}<
 				<strong>Relocation / Next Home:</strong><br>${analysisObj.relocationNextHome || ""}
 				`;
 					
-				typeAnalysis(analysisBox, formattedAnalysis);
+				analysisBox.innerHTML = formattedAnalysis;
 
 				snapshotBox.classList.remove("box-placeholder");
 				transcriptBox.classList.remove("box-placeholder");
