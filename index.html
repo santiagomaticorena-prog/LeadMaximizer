@@ -546,6 +546,19 @@
 			showToast(successMessage);
 		}
 
+		function formatSpeakerTranscript(speakerTranscript, fallbackTranscript = "") {
+			if (
+				!speakerTranscript ||
+				!Array.isArray(speakerTranscript.conversation) 
+			) {
+				return fallbackTranscript || "No transcript returned.";
+			}
+	
+			return speakerTranscript.conversation 
+				.map(line => `${line.speaker}: ${line.text}`)
+				.join("\n\n");
+		}
+
 		function toggleSection(sectionId, arrowId) {
 			const section = document.getElementById(sectionId);
 			const arrow = document.getElementById(arrowId);
@@ -792,7 +805,12 @@
 
 			const transcriptBox = document.getElementById("transcript");
 
-			transcriptBox.innerText = call.transcript || "No transcript saved.";
+			const loadedTranscript = formatSpeakerTranscript(
+				call.speaker_transcript,
+				call.transcript
+			);
+
+			transcriptBox.innerText = loadedTranscript || "No transcript saved.";
 
 			transcriptBox.classList.remove("box-placeholder");
 
@@ -1006,7 +1024,10 @@
 				`;
 
 				transcriptBox.innerText = data.transcript || "No transcript returned.";
-				const transcriptText = data.transcript || "";
+				const transcriptText = formatSpeakerTranscript(
+					data.speakerTranscript,
+					data.transcript
+				);
 
 				transcriptBox.innerText = transcriptText || "No transcript returned.";
 

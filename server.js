@@ -136,6 +136,66 @@ async function transcribeAudio(filePath) {
 	return transcription.text;
 }
 
+async function separateSpeakers(transcriptText) {
+	const response = await openai.responses.create({
+		model: "gpt-5.4",
+		text: {
+			format: {	
+				type: "json_object"
+			}
+		},
+		input: `
+You are given a real estate call transcript.
+
+Separate the transcript into speakers.
+
+Rules:
+- Label the caller as "Agent"
+- Label the homeowner/lead as "Prospect"
+- Preserve the original wording
+- Do not summarize
+- Do not rewrite the conversation
+- Keep filler words and short responses
+- If unsure, make the best speaker guess from context
+
+Return ONLY valid JSON.
+
+Use this exact structure:
+
+{
+	"conversation": [
+		{
+			"speaker": "Agent",
+			"text": ""
+		},
+		{
+			"speaker": "Prospect",
+			"text": ""
+		}
+	]
+}
+
+Transcript:
+${transcriptText}
+`
+	});
+
+	try { 
+		return JSON.parse(response.output_text);
+	} catch (error) {
+		console.error("Speaker separation failed:", response.output_text);
+
+		return {
+			conversation: [
+				{
+					speaker: "Unknown",
+					text: transcriptText
+				}
+			]
+		};
+	}
+}
+
 async function analyzeTranscript(transcriptText, callerType = "agent") {
 	const analysis = await openai.responses.create({
 		model: "gpt-5.4",
@@ -385,8 +445,13 @@ app.post("/api/upload", uploadLimiter, upload.single("audio"), async (req, res) 
 		
 		console.log("Starting transcription...");
 		const transcriptText = await transcribeAudio(req.file.path);
-		console.log("Transcription done:", transcriptText);
-		const callerType = "agent"; // or "assistant"
+		console.log("Transcription done:", transcriptionText);
+
+		console.log("Separating speakers...");
+		const speakerTranscript = await separateSpeakers(transcriptText);
+		console.log("Speaker separation done:", speakerTranscript);
+
+		const callerType = "agent"; // or "assistant" 
 
 		console.log("Starting analysis...");
 		const parsedAnalysis = await analyzeTranscript(transcriptText, callerType);
@@ -414,6 +479,7 @@ app.post("/api/upload", uploadLimiter, upload.single("audio"), async (req, res) 
 							user_id: userData.user.id,	
 							file_name: req.file.originalname,
 							transcript: transcriptText,
+							speaker_transcript: speakerTranscript,
 							analysis: parsedAnalysis,
 							call_score: parsedAnalysis.callScore,
 							lead_status: parsedAnalysis.leadStatus,
@@ -437,6 +503,7 @@ app.post("/api/upload", uploadLimiter, upload.single("audio"), async (req, res) 
 		res.json({
 			message: "File uploaded and transcribed, and analyzed",
 			transcript: transcriptText,
+			speakerTranscript: speakerTranscript,
 			analysis: parsedAnalysis
 		});
 	} catch (error) {
