@@ -445,7 +445,7 @@ app.post("/api/upload", uploadLimiter, upload.single("audio"), async (req, res) 
 		
 		console.log("Starting transcription...");
 		const transcriptText = await transcribeAudio(req.file.path);
-		console.log("Transcription done:", transcriptionText);
+		console.log("Transcription done:", transcriptText);
 
 		console.log("Separating speakers...");
 		const speakerTranscript = await separateSpeakers(transcriptText);
