@@ -1061,6 +1061,11 @@
 
 				<strong>Seller Motivation:</strong><br>${analysisObj.sellerMotivation || ""}<br><br>
 
+				<strong>Prospect Personality:</strong><br>
+				<strong>Type:</strong> ${analysisObj.prospectPersonality?.type || "Neutral"}<br>
+				<strong>Why:</strong> ${analysisObj.prospectPersonality?.reason || ""}<br>
+				<strong>How to Adjust:</strong> ${analysisObj.prospectPersonality?.coachingAdjustment || ""}<br><br>
+
 				<strong>Options To Present:</strong><br>
 ${(analysisObj.optionsToPresent || []).map(item => `• ${item}`).join("<br>")}<br><br>
 

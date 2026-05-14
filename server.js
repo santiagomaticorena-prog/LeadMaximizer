@@ -382,6 +382,20 @@ SELLER MOTIVATION (inferred):
 OPTIONS TO PRESENT: 
 - suggest 2-3 ways the agent could position options (listing, off-market, cash offer, etc.)
 
+PROSPECT PERSONALITY:
+- identify the prospect's likely communication style 
+- choose one primary type:
+	- Analytical
+	- Defensive 
+	- Rushed 
+	- Curious 
+	- Emotional 
+	- Skeptical 
+	- Neutral 
+- explain why based only on the prospect's actual responses
+- explain how the agent should adjust their approach 
+- keep it practical and concise
+
 RELOCATION / NEXT HOME:
 - if applicable, suggest how the agent could help the seller with their next move 
 - if not applicable, say "Not enough information"
@@ -412,6 +426,12 @@ Use this exact JSON structure:
 	},
 	"sellerMotivation": "",
 	"optionsToPresent": [],
+	"prospectPersonality": {
+		"type": "Neutral",
+		"reason"; "",
+		"coachingAdjustment": ""
+	},
+
 	"relocationNextHome": ""
 }
       `
