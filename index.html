@@ -313,6 +313,32 @@
 			justify-content: space-between;
 			align-items: center;
 		}
+		.analysis-box {
+			text-align: left;
+			white-space: normal;
+		}
+		.analysis-heading {
+			display: inline;
+			font-weight: bold;
+			margin: 0;
+		}
+		.analysis-section {
+			margin-bottom: 14px;
+		}
+		.analysis-box br + * {
+			text-align: left;
+		}
+		.analysis-content {
+			text-align: left;
+			margin-top: 4px;
+		}
+		.analysis-content ul {
+			margin: 4px 0 0 18px;
+			padding: 0;
+		}
+		.analysis-content li {
+			margin-bottom: 4px;
+		}
 	</style>
 </head>
 
@@ -405,7 +431,7 @@
 			</div>
 			<div id="analysisSection">
 				<button id="copyAnalysisBtn" class="copy-btn" style="display:none;" onclick="copyText('analysis', 'Analysis copied.')">Copy Analysis</button>
-				<div id="analysis" class="box box-placeholder">Detailed AI coaching feedback will show up here.</div>
+				<div id="analysis" class="box analysis-box box-placeholder">Detailed AI coaching feedback will show up here.</div>
 			</div>
 
 		</div>
@@ -788,7 +814,7 @@
 				<div class="snapshot-grid">
 					<div class="stat-card">
 						<div class="stat-title">Call Score</div>
-						<div class="stat-value">${score}</div>
+						<div class="stat-value">${score}/10</div>
 					</div>
 
 					<div class="stat-card">
@@ -821,35 +847,75 @@
 					.replace(/\n/g, "<br>");
 			} else {
 				formattedAnalysis = `
-					<strong>Summary:</strong><br>
-					${analysisObj.summary || ""}<br><br>
+					<div class="analysis-section">
+						<strong class="analysis-heading">Summary:</strong>
+						${analysisObj.summary || ""}<br><br>
+					</div>
 
-					<strong>What Went Well:</strong><br>
-					${(analysisObj.whatWentWell || [])
-						.map(item => `• ${item}`)
-						.join("<br>")}<br><br>
+					<div class="analysis-section">
+						<strong class="analysis-heading">What Went Well:</strong>
+						<div class="analysis-content">
+							<ul>
+								${(analysisObj.whatWentWell || [])
+									.map(item => `• ${item}`)
+									.join("")}
+							</ul>
+						</div>
+					</div>
+		
+					<div class="analysis-section">
+						<strong class="analysis-heading">What To Fix:</strong>
+						<div class="analysis-content">
+							<ul>
+								${(analysisObj.whatToFix || [])
+									.map(item => `<li> ${item}</li>`)
+									.join("")}
+							</ul>
+						</div>
+					</div>
 
-					<strong>What To Fix:</strong><br>
-					${(analysisObj.whatToFix || [])
-						.map(item => `• ${item}`)
-						.join("<br>")}<br><br>
+					<div class="analysis-section">
+						<strong class="analysis-heading">Better Opening:</strong>
+						${analysisObj.betterOpening || ""}<br><br>
+					</div>
 
-					<strong>Better Opening:</strong><br>
-					${analysisObj.betterOpening || ""}<br><br>
+					<div class="analysis-section">
+						<strong class="analysis-heading">Next Move:</strong>
+						${analysisObj.nextMove?.exactSentence || ""}<br><br>
+					</div>					
 
-					<strong>Next Move:</strong><br>
-					${analysisObj.nextMove?.exactSentence || ""}<br><br>
+					<div class="analysis-section">
+						<strong class="analysis-heading">Seller Motivation:</strong>
+						${analysisObj.sellerMotivation || ""}<br><br>
+					</div>
 
-					<strong>Seller Motivation:</strong><br>
-					${analysisObj.sellerMotivation || ""}<br><br>
+					<div class="analysis-section">
+						<strong class="analysis-heading">Prospect Personality:</strong>
+						<div class="analysis-content">
+							<strong>Type:</strong> 
+							${analysisObj.prospectPersonality?.type || "Neutral"}<br>
+							<strong>Why:</strong> 
+							${analysisObj.prospectPersonality?.reason || ""}<br><br>
+							<strong>How to Adjust:</strong> 
+							${analysisObj.prospectPersonality?.coachingAdjustment || ""}
+						</div>
+					</div>
+						
+					<div class="analysis-section">
+						<strong class="analysis-heading">Options To Present:</strong>
+						<div class="analysis-content">
+							<ul>
+								${(analysisObj.optionsToPresent || [])
+									.map(item => `<li> ${item}</li>`)
+									.join("")}
+							</ul>
+						</div>
+					</div>
 
-					<strong>Options To Present:</strong><br>
-					${(analysisObj.optionsToPresent || [])
-						.map(item => `• ${item}`)
-						.join("<br>")}<br><br>
-
-					<strong>Relocation / Next Home:</strong><br>
-					${analysisObj.relocationNextHome || ""}
+					<div class="analysis-section">
+						<strong class="analysis-heading">Possible Relocation:</strong>
+						{analysisObj.relocationNextHome || ""}<br><br>
+					</div>
 				`;
 			}
 
@@ -1010,7 +1076,7 @@
 					<div class="snapshot-grid">
 						<div class="stat-card">
 							<div class="stat-title">Call Score</div>
-							<div class="stat-value">${score}</div>
+							<div class="stat-value">${score}/10</div>
 						</div>
 						<div class="stat-card">
 							<div class="stat-title">Lead Status</div>
@@ -1047,29 +1113,75 @@
 				stats.style.display = wordCount > 0 ? "block" : "none";
 
 				const formattedAnalysis = `
-				<strong>Summary:</strong><br>${analysisObj.summary || ""}<br><br>
+				<div class="analysis-section">
+					<strong class="analysis-heading">Summary:</strong>
+					${analysisObj.summary || ""}<br><br>
+				</div>
+				
+				<div class="analysis-section">
+					<strong class="analysis-heading">What Went Well:</strong>
+					<div class="analysis-content">
+						<ul>
+							${(analysisObj.whatWentWell || [])
+								.map(item => `<li> ${item}</li>`)
+								.join("")}
+						</ul>
+					</div>
+				</div>
 
-				<strong>What Went Well:</strong><br>
-				${(analysisObj.whatWentWell || []).map(item => `• ${item}`).join("<br>")}<br><br>
+				<div class="analysis-section">
+					<strong class="analysis-heading">What To Fix:</strong>
+					<div class="analysis-content">
+						<ul>
+							${(analysisObj.whatToFix || [])
+								.map(item => `<li> ${item}</li>`)
+								.join("")}
+						</ul>
+					</div>
+				</div>
 
-				<strong>What To Fix:</strong><br>
-				${(analysisObj.whatToFix || []).map(item => `• ${item}`).join("<br>")}<br><br>
+				<div class="analysis-section">
+					<strong class="analysis-heading">Better Opening:</strong>
+					${analysisObj.betterOpening || ""}<br><br>
+				</div>
 
-				<strong>Better Opening:</strong><br>${analysisObj.betterOpening || ""}<br><br>
+				<div class="analysis-section">
+					<strong class="analysis-heading">Next Move:</strong>
+					${analysisObj.nextMove?.exactSentence || ""}<br><br>
+				</div>
 
-				<strong>Next Move:</strong><br>${analysisObj.nextMove?.exactSentence || ""}<br><br>
+				<div class="analysis-section">
+					<strong class="analysis-heading">Seller Motivation:</strong>
+					${analysisObj.sellerMotivation || ""}<br><br>
+				</div>
 
-				<strong>Seller Motivation:</strong><br>${analysisObj.sellerMotivation || ""}<br><br>
+				<div class="analysis-section">
+					<strong class="analysis-heading">Prospect Personality:</strong>
+					<div class="analysis-content">
+						<strong>Type:</strong> 
+						${analysisObj.prospectPersonality?.type || "Neutral"}<br>
+						<strong>Why:</strong> 
+						${analysisObj.prospectPersonality?.reason || ""}<br><br>
+						<strong>How to Adjust:</strong> 
+						${analysisObj.prospectPersonality?.coachingAdjustment || ""}
+					</div>
+				</div>
 
-				<strong>Prospect Personality:</strong><br>
-				<strong>Type:</strong> ${analysisObj.prospectPersonality?.type || "Neutral"}<br>
-				<strong>Why:</strong> ${analysisObj.prospectPersonality?.reason || ""}<br>
-				<strong>How to Adjust:</strong> ${analysisObj.prospectPersonality?.coachingAdjustment || ""}<br><br>
+				<div class="analysis-section">
+					<strong class="analysis-heading">Options To Present:</strong>
+					<div class="analysis-content">
+						<ul>
+							${(analysisObj.optionsToPresent || [])
+								.map(item => `<li> ${item}</li>`)
+								.join("")}
+						</ul>
+					</div>
+				</div>
 
-				<strong>Options To Present:</strong><br>
-${(analysisObj.optionsToPresent || []).map(item => `• ${item}`).join("<br>")}<br><br>
-
-				<strong>Relocation / Next Home:</strong><br>${analysisObj.relocationNextHome || ""}
+				<div class="analysis-section">
+					<strong class="analysis-heading">Possible Relocation:</strong>
+					${analysisObj.relocationNextHome || ""}<br><br>
+				</div>
 				`;
 					
 				analysisBox.innerHTML = formattedAnalysis;
