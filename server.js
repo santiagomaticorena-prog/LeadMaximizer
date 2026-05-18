@@ -128,7 +128,7 @@ app.post("/api/analyze", (req, res) => {
 async function transcribeAudio(filePath) {
 	const transcription = await openai.audio.transcriptions.create({
 		file: fs.createReadStream(filePath),
-		model: "gpt-40-transcribe-diarize",
+		model: "gpt-4o-transcribe-diarize",
 		response_format: "diarized_json"
 	});
 
