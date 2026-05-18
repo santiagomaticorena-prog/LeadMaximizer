@@ -128,12 +128,25 @@ app.post("/api/analyze", (req, res) => {
 async function transcribeAudio(filePath) {
 	const transcription = await openai.audio.transcriptions.create({
 		file: fs.createReadStream(filePath),
-		model: "gpt-4o-transcribe",
-		language: "en",
-		prompt: "Transcribe everything exactly as spoken in this real estate call, including quiet speech, filler words, incomplete phrases, and low-volume words."
+		model: "gpt-40-transcribe-diarize",
+		response_format: "diarized_json"
 	});
 
-	return transcription.text;
+	const transcriptText = transcription.text || "";
+
+	const speakerTranscript = {
+		conversation: (transcription.segments || []).map(segment => ({
+			speaker: segment.speaker || "Unknown",
+			text: segment.text || "",
+			start: segment.start || 0,
+			end: segment.end || 0
+		}))
+	};
+
+	return {
+		transcriptText,
+		speakerTranscript
+	};
 }
 
 async function separateSpeakers(transcriptText) {
@@ -428,7 +441,7 @@ Use this exact JSON structure:
 	"optionsToPresent": [],
 	"prospectPersonality": {
 		"type": "Neutral",
-		"reason"; "",
+		"reason": "",
 		"coachingAdjustment": ""
 	},
 
@@ -464,12 +477,13 @@ app.post("/api/upload", uploadLimiter, upload.single("audio"), async (req, res) 
 		console.log(req.file);
 		
 		console.log("Starting transcription...");
-		const transcriptText = await transcribeAudio(req.file.path);
-		console.log("Transcription done:", transcriptText);
+		const transcriptionResult = await transcribeAudio(req.file.path);
 
-		console.log("Separating speakers...");
-		const speakerTranscript = await separateSpeakers(transcriptText);
-		console.log("Speaker separation done:", speakerTranscript);
+		const transcriptText = transcriptionResult.transcriptText;
+		const speakerTranscript = transcriptionResult.speakerTranscript;
+		
+		console.log("Transcription done:", transcriptText);
+		console.log("Speaker transcript done:", speakerTranscript);
 
 		const callerType = "agent"; // or "assistant" 
 

@@ -339,6 +339,34 @@
 		.analysis-content li {
 			margin-bottom: 4px;
 		}
+		.transcript-line {
+			padding: 4px 8px;
+			border-radius: 6px;
+			margin-bottom: 2px;
+			cursor: pointer;
+			border: 1px solid #e5e5e5;
+			background: #fff;
+			font-size: 14px;
+			line-height: 1.25;
+		}
+		#transcript {
+			display: flex;
+			flex-direction: column;
+			gap: 2px;
+		}
+		.transcript-line:hover {
+			background: #f7f8ff;
+		}
+		.transcript-line.active-line {
+			font-weight: bold;
+			background: #eef2ff;
+			border-color: #4169E1;
+		}
+		.speaker-label {
+			font-weight: bold;
+			color: #4169E1;
+			margin-right: 4px;
+		}
 	</style>
 </head>
 
@@ -420,6 +448,11 @@
 				0 words • ~0 min
 			</div>	
 			<div id="transcriptSection">
+				<audio id="callAudioPlayer"
+					controls
+					style="display:none; width:100%; margin-bottom:12px;">
+				</audio>
+
 				<button id="copyTranscriptBtn" class="copy-btn" style="display:none;" onclick="copyText('transcript', 'Transcript copied.')">Copy Transcript</button>
 				<div id="transcript" class="box box-placeholder">Your transcript will appear here after analysis.</div>
 			</div>
@@ -561,18 +594,33 @@
 
 		async function copyText(elementId, successMessage) {
 			const element = document.getElementById(elementId);
-			const text = element.innerText.trim();
+			let text = element.innerText.trim();
 
 			if(!text || element.classList.contains("box-placeholder")) {
 				showToast("Nothing to copy yet.");
 				return;
 			}
 
+			try {
+				text = decodeURIComponent(text);
+			} catch (error) {
+				console.log("Text did not need decoding.");
+			}
+
+			text = text 
+				.replace(/%20/g, " ")
+				.replace(/%0A/gi, "\n")
+				.replace(/%3A/gi, ":")
+				.replace(/%2F/gi, "/")
+				.replace(/%2C/gi, ",")
+				.replace(/%27/gi, "'")
+				.replace(/%22/gi, '"');
+
 			await navigator.clipboard.writeText(text);
 			showToast(successMessage);
 		}
 
-		function formatSpeakerTranscript(speakerTranscript, fallbackTranscript = "") {
+		function renderSpeakerTranscript(speakerTranscript, fallbackTranscript = "") {
 			if (
 				!speakerTranscript ||
 				!Array.isArray(speakerTranscript.conversation) 
@@ -581,8 +629,51 @@
 			}
 	
 			return speakerTranscript.conversation 
-				.map(line => `${line.speaker}: ${line.text}`)
-				.join("\n\n");
+				.map((line, index) => `
+					<div 
+						class="transcript-line"
+						data-start="${line.start ?? 0}"
+						data-end="${line.end ?? 0}"
+						data-index="${index}"
+					>
+						<span class="speaker-label">${line.speaker}:</span>
+						<span>${line.text}</span>
+					</div>
+				`)
+				.join("");
+		}
+
+		function setupTranscriptSync() {
+			const audioPlayer = document.getElementById("callAudioPlayer");
+			const lines = document.querySelectorAll(".transcript-line");
+
+			if (!audioPlayer || lines.length === 0) return;
+
+			lines.forEach(line => {
+				line.addEventListener("click", () => {
+					const start = Number(line.dataset.start);
+
+					if (!Number.isNaN(start)) {
+						audioPlayer.currentTime = start;
+						audioPlayer.play();
+					}
+				});
+			});
+
+			audioPlayer.ontimeupdate = () => {
+				const currentTime = audioPlayer.currentTime;
+
+				lines.forEach(line => {
+					const start = Number(line.dataset.start);
+					const end = Number(line.dataset.end);
+	
+					if (currentTime >= start && currentTime <= end) {
+						line.classList.add("active-line");
+					} else {
+						line.classList.remove("active-line");
+					}
+				});
+			};
 		}
 
 		function toggleSection(sectionId, arrowId) {
@@ -831,12 +922,13 @@
 
 			const transcriptBox = document.getElementById("transcript");
 
-			const loadedTranscript = formatSpeakerTranscript(
+			const loadedTranscriptHTML = renderSpeakerTranscript(
 				call.speaker_transcript,
 				call.transcript
 			);
 
-			transcriptBox.innerText = loadedTranscript || "No transcript saved.";
+			transcriptBox.innerHTML = loadedTranscriptHTML || "No transcript saved.";
+			setupTranscriptSync();
 
 			transcriptBox.classList.remove("box-placeholder");
 
@@ -944,6 +1036,7 @@
 			const snapshotBox = document.getElementById("snapshot");
 			const transcriptBox = document.getElementById("transcript");
 			const analysisBox = document.getElementById("analysis");
+			const audioPlayer = document.getElementById("callAudioPlayer");
 
 			fileInput.value = "";
 			fileNameDisplay.innerText = "";
@@ -952,6 +1045,9 @@
 			snapshotBox.innerText = "Your call performance metrics will appear here after analysis.";
 			transcriptBox.innerText = "Your transcript will appear here after analysis.";
 			analysisBox.innerText = "Detailed AI coaching feedback will show up here.";
+			audioPlayer.pause();
+			audioPlayer.src = "";
+			audioPlayer.style.display = "none";
 
 			snapshotBox.classList.add("box-placeholder");
 			transcriptBox.classList.add("box-placeholder");
@@ -1013,6 +1109,8 @@
 			const analyzeBtn = document.querySelector('button[onclick="uploadFile()"]');
 
 			const file = fileInput.files[0];
+
+			const audioUrl = file ? URL.createObjectURL(file) : "";
 
 			if (!file) {
 				showToast("Please choose an audio file first.");
@@ -1090,12 +1188,14 @@
 				`;
 
 				transcriptBox.innerText = data.transcript || "No transcript returned.";
-				const transcriptText = formatSpeakerTranscript(
+				const transcriptHTML = renderSpeakerTranscript(
 					data.speakerTranscript,
 					data.transcript
 				);
 
-				transcriptBox.innerText = transcriptText || "No transcript returned.";
+				transcriptBox.innerHTML = transcriptHTML || "No transcript returned.";
+				setupTranscriptSync();
+				const transcriptText = transcriptBox.innerText || "";
 
 				transcriptBox.classList.remove("box-placeholder");
 
@@ -1193,6 +1293,11 @@
 				document.getElementById("copyTranscriptBtn").style.display = "inline-block";
 				document.getElementById("copyAnalysisBtn").style.display = "inline-block";
 				document.getElementById("newCallBtn").style.display = "inline-block";
+
+				const audioPlayer = document.getElementById("callAudioPlayer");
+	
+				audioPlayer.src = audioUrl;
+				audioPlayer.style.display = "block";				
 
 				snapshotBox.classList.add("fade-in");
 				transcriptBox.classList.add("fade-in");
