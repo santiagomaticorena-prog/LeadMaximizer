@@ -130,6 +130,7 @@ async function transcribeAudio(filePath) {
 		file: fs.createReadStream(filePath),
 		model: "gpt-4o-transcribe-diarize",
 		response_format: "diarized_json"
+		chunking_strategy: "auto"
 	});
 
 	const transcriptText = transcription.text || "";
