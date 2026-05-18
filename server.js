@@ -129,7 +129,7 @@ async function transcribeAudio(filePath) {
 	const transcription = await openai.audio.transcriptions.create({
 		file: fs.createReadStream(filePath),
 		model: "gpt-4o-transcribe-diarize",
-		response_format: "diarized_json"
+		response_format: "diarized_json",
 		chunking_strategy: "auto"
 	});
 
