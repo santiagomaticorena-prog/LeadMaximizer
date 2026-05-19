@@ -201,7 +201,7 @@ Use this structure:
 }
 
 Speaker transcript:
-${JSON.stringify(speakertranscript)}
+${JSON.stringify(speakerTranscript)}
 
 Full transcript:
 ${transcriptText}
