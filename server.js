@@ -150,6 +150,114 @@ async function transcribeAudio(filePath) {
 	};
 }
 
+async function identifySpeakerRoles(speakerTranscript, transcriptText) {
+	const response = await openai.responses.create({
+		model: "gpt-5.4",
+		text: {
+			format: {
+				type: "json_object"
+			}
+		},
+		input: `
+You are identifying speaker roles in a real estate phone call. 
+
+Possible role labels:
+- Agent 
+- Assistant
+- Seller 
+- Buyer
+- Investor 
+- Tenant 
+- Gatekeeper 
+- Family Member 
+- Prospect 
+
+Rules: 
+- Use explicit evidence first.
+- If not explicit, infer carefully from context.
+- Do not overguess.
+- If unsure about speaker A, label them "Caller".
+- If unsure about speaker B, label them "Prospect".
+- Only use Seller, Buyer, Investor, Tenant, Gatekeeper, Assistant, or Family Member when the transcript gives enough evidence. 
+- Return confidence as High, Medium, or Low.
+- Keep evidence short. 
+
+Return ONLY valid JSON.
+
+Use this structure:
+{ 
+	"roles": {
+		"A": {
+			"label": "Caller",
+			"confidence": "Low",
+			"evidence": "Fallback because role was unclear."
+		},
+		"B": {
+			"label": "Prospect",
+			"confidence": "Low",
+			"evidence": "Fallback because role was unclear."
+		}
+	}
+}
+
+Speaker transcript:
+${JSON.stringify(speakertranscript)}
+
+Full transcript:
+${transcriptText}
+`
+	});
+
+	try {
+		return JSON.parse(response.output_text);
+	} catch (error) {
+		console.error("Speaker role detection failed:", response.output_text);
+
+		return {
+			roles: {
+				A: {
+					label: "Caller",
+					confidence: "Low",
+					evidence: "Fallback because role detection failed."
+				},
+				B: {
+					label: "Prospect",
+					confidence: "Low",
+					evidence: "Fallback because role detection failed."
+				}
+			}
+		};
+	}
+}
+
+function fallbackSpeakerLabel(rawSpeaker) {
+	if (rawSpeaker === "A" || rawSpeaker === "speaker_0") return "Caller";
+	if (rawSpeaker === "B" || rawSpeaker === "speaker_1") return "Prospect";
+	return rawSpeaker || "Unknown";
+} 
+
+function applySpeakerRoles(speakerTranscript, speakerRoles) {
+	const roles = speakerRoles?.roles || {};
+
+	return {
+		...speakerTranscript,
+		speakerRoles: roles, 
+		conversation: (speakerTranscript.conversation || []).map(line => {
+			const rawSpeaker = line.speaker;
+			const roleInfo = roles[rawSpeaker];
+			const safeLabel = roleInfo?.label || fallbackSpeakerLabel(rawSpeaker);
+
+			return {
+				...line,
+				rawSpeaker, 
+				speaker: safeLabel,
+				speakerConfidence: roleInfo?.confidence || "Low",
+				speakerEvidence: roleInfo?.evidence || "Fallback label used."
+			};
+		})
+	};
+}
+
 async function separateSpeakers(transcriptText) {
 	const response = await openai.responses.create({
 		model: "gpt-5.4",
@@ -481,10 +589,17 @@ app.post("/api/upload", uploadLimiter, upload.single("audio"), async (req, res) 
 		const transcriptionResult = await transcribeAudio(req.file.path);
 
 		const transcriptText = transcriptionResult.transcriptText;
-		const speakerTranscript = transcriptionResult.speakerTranscript;
+		let speakerTranscript = transcriptionResult.speakerTranscript;
 		
 		console.log("Transcription done:", transcriptText);
 		console.log("Speaker transcript done:", speakerTranscript);
+
+		console.log("Identifying speaker roles...");
+		const speakerRoles = await identifySpeakerRoles(speakerTranscript, transcriptText);
+
+		speakerTranscript = applySpeakerRoles(speakerTranscript, speakerRoles);
+
+		console.log("Speaker roles applied:", speakerTranscript);
 
 		const callerType = "agent"; // or "assistant" 
 

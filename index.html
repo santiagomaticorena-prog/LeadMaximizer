@@ -353,6 +353,12 @@
 			display: flex;
 			flex-direction: column;
 			gap: 2px;
+			max-height: 300px;
+			overflow-y: auto;
+		}
+		#analysis {
+			max-height: 420px;
+			overflow-y: auto;
 		}
 		.transcript-line:hover {
 			background: #f7f8ff;
@@ -636,7 +642,15 @@
 						data-end="${line.end ?? 0}"
 						data-index="${index}"
 					>
-						<span class="speaker-label">${line.speaker}:</span>
+						<span class="speaker-label">
+							${
+								line.speaker === "A" || line.speaker === "speaker_0"
+									? "Caller"
+									: line.speaker === "B" || line.speaker === "speaker_1"
+									? "Prospect"
+									:line.speaker
+							}:
+						</span>
 						<span>${line.text}</span>
 					</div>
 				`)
@@ -669,6 +683,13 @@
 	
 					if (currentTime >= start && currentTime <= end) {
 						line.classList.add("active-line");
+						
+						const transcriptBox = document.getElementById("transcript");
+
+						transcriptBox.scrollTo({
+							top: line.offsetTop - transcriptBox.offsetTop - transcriptBox.clientHeight / 2,
+							behavior: "smooth"
+						});
 					} else {
 						line.classList.remove("active-line");
 					}
@@ -1284,7 +1305,7 @@
 				</div>
 				`;
 					
-				analysisBox.innerHTML = formattedAnalysis;
+				typeAnalysis(analysisBox, formattedAnalysis);
 
 				snapshotBox.classList.remove("box-placeholder");
 				transcriptBox.classList.remove("box-placeholder");
