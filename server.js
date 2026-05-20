@@ -181,6 +181,9 @@ Rules:
 - Only use Seller, Buyer, Investor, Tenant, Gatekeeper, Assistant, or Family Member when the transcript gives enough evidence. 
 - Return confidence as High, Medium, or Low.
 - Keep evidence short. 
+- The speaker IDs are exactly the values shown in each conversation line's speaker field.
+- Return role keys using those exact speaker IDs.
+- For example, if the transcript uses "A" and "B", return "A" and "B".
 
 Return ONLY valid JSON.
 
@@ -244,7 +247,10 @@ function applySpeakerRoles(speakerTranscript, speakerRoles) {
 		speakerRoles: roles, 
 		conversation: (speakerTranscript.conversation || []).map(line => {
 			const rawSpeaker = line.speaker;
-			const roleInfo = roles[rawSpeaker];
+			const roleInfo = 
+				roles[rawSpeaker] ||
+				roles[String(rawSpeaker).toUpperCase()] ||
+				roles[fallbackSpeakerLabel(rawSpeaker)];
 			const safeLabel = roleInfo?.label || fallbackSpeakerLabel(rawSpeaker);
 
 			return {
